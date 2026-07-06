@@ -49,10 +49,18 @@ async def list_courses():
 @router.get("/teacher/courses")
 async def teacher_courses(user: dict = Depends(require_role("teacher", "admin"))):
     docs = await db.courses.find({"teacher_id": user["id"]}).sort("created_at", -1).to_list(200)
+    ids = [d["_id"] for d in docs]
+    counts = {
+        c["_id"]: c["n"]
+        for c in await db.enrollments.aggregate([
+            {"$match": {"course_id": {"$in": ids}}},
+            {"$group": {"_id": "$course_id", "n": {"$sum": 1}}},
+        ]).to_list(500)
+    }
     result = []
     for d in docs:
         d = course_out(d)
-        d["enrolled_count"] = await db.enrollments.count_documents({"course_id": d["id"]})
+        d["enrolled_count"] = counts.get(d["id"], 0)
         result.append(d)
     return result
 
@@ -171,12 +179,14 @@ async def enroll(course_id: str, body: Optional[EnrollBody] = None, user: dict =
 @router.get("/student/enrollments")
 async def my_enrollments(user: dict = Depends(require_role("student"))):
     enrollments = await db.enrollments.find({"student_id": user["id"]}).to_list(200)
+    course_ids = [e["course_id"] for e in enrollments]
+    courses = {c["_id"]: c for c in await db.courses.find({"_id": {"$in": course_ids}}).to_list(200)}
     result = []
     for e in enrollments:
-        course = await db.courses.find_one({"_id": e["course_id"]})
+        course = courses.get(e["course_id"])
         if not course:
             continue
-        course = course_out(course)
+        course = course_out(dict(course))
         total = sum(len(s.get("lessons", [])) for s in course.get("sections", []))
         done = len(e.get("completed_lessons", []))
         course["progress"] = round(done / total * 100) if total else 0
@@ -199,9 +209,11 @@ async def complete_lesson(course_id: str, lesson_id: str, user: dict = Depends(r
 @router.get("/courses/{course_id}/students")
 async def course_students(course_id: str, user: dict = Depends(require_role("teacher", "admin"))):
     enrollments = await db.enrollments.find({"course_id": course_id}).to_list(500)
+    student_ids = [e["student_id"] for e in enrollments]
+    students = {s["_id"]: s for s in await db.users.find({"_id": {"$in": student_ids}}).to_list(500)}
     result = []
     for e in enrollments:
-        student = await db.users.find_one({"_id": e["student_id"]})
+        student = students.get(e["student_id"])
         if student:
             result.append({
                 "id": student["_id"],

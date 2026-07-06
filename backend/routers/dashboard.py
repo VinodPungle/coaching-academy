@@ -38,26 +38,54 @@ async def student_dashboard(user: dict = Depends(require_role("student"))):
 @router.get("/dashboard/teacher/analytics")
 async def teacher_analytics(user: dict = Depends(require_role("teacher", "admin"))):
     courses = await db.courses.find({"teacher_id": user["id"]}).to_list(100)
-    course_stats = []
-    for c in courses:
-        count = await db.enrollments.count_documents({"course_id": c["_id"]})
-        course_stats.append({"title": c["title"], "students": count})
+    course_ids = [c["_id"] for c in courses]
+    enroll_counts = {
+        r["_id"]: r["n"]
+        for r in await db.enrollments.aggregate([
+            {"$match": {"course_id": {"$in": course_ids}}},
+            {"$group": {"_id": "$course_id", "n": {"$sum": 1}}},
+        ]).to_list(500)
+    }
+    course_stats = [{"title": c["title"], "students": enroll_counts.get(c["_id"], 0)} for c in courses]
+
     tests = await db.tests.find({"teacher_id": user["id"]}).to_list(100)
-    test_stats = []
-    for t in tests:
-        attempts = await db.test_attempts.find({"test_id": t["_id"]}).to_list(1000)
-        pcts = [a["score"] / a["total"] * 100 for a in attempts if a.get("total")]
-        test_stats.append({
-            "title": t["title"],
-            "attempts": len(attempts),
-            "avg_pct": round(sum(pcts) / len(pcts)) if pcts else 0,
-        })
+    test_ids = [t["_id"] for t in tests]
+    attempt_agg = {
+        r["_id"]: r
+        for r in await db.test_attempts.aggregate([
+            {"$match": {"test_id": {"$in": test_ids}}},
+            {"$group": {
+                "_id": "$test_id",
+                "n": {"$sum": 1},
+                "avg": {"$avg": {"$cond": [{"$gt": ["$total", 0]}, {"$multiply": [{"$divide": ["$score", "$total"]}, 100]}, 0]}},
+            }},
+        ]).to_list(500)
+    }
+    test_stats = [
+        {"title": t["title"], "attempts": attempt_agg.get(t["_id"], {}).get("n", 0),
+         "avg_pct": round(attempt_agg.get(t["_id"], {}).get("avg") or 0)}
+        for t in tests
+    ]
+
     assignments = await db.assignments.find({"teacher_id": user["id"]}).to_list(100)
+    assignment_ids = [a["_id"] for a in assignments]
+    sub_agg = {
+        r["_id"]: r
+        for r in await db.submissions.aggregate([
+            {"$match": {"assignment_id": {"$in": assignment_ids}}},
+            {"$group": {
+                "_id": "$assignment_id",
+                "submitted": {"$sum": 1},
+                "graded": {"$sum": {"$cond": [{"$ne": ["$grade", None]}, 1, 0]}},
+            }},
+        ]).to_list(500)
+    }
     assignment_stats = []
     for a in assignments:
-        subs = await db.submissions.find({"assignment_id": a["_id"]}).to_list(1000)
-        graded = len([s for s in subs if s.get("grade") is not None])
-        assignment_stats.append({"title": a["title"], "submitted": len(subs), "graded": graded, "pending": len(subs) - graded})
+        r = sub_agg.get(a["_id"], {})
+        submitted = r.get("submitted", 0)
+        graded = r.get("graded", 0)
+        assignment_stats.append({"title": a["title"], "submitted": submitted, "graded": graded, "pending": submitted - graded})
     return {"courses": course_stats, "tests": test_stats, "assignments": assignment_stats}
 
 

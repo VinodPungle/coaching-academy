@@ -55,18 +55,30 @@ def test_out(doc: dict, hide_answers: bool = False) -> dict:
 async def list_tests(user: dict = Depends(get_current_user)):
     if user["role"] in ("teacher", "admin"):
         docs = await db.tests.find({"teacher_id": user["id"]}).sort("created_at", -1).to_list(200)
+        ids = [d["_id"] for d in docs]
+        counts = {
+            r["_id"]: r["n"]
+            for r in await db.test_attempts.aggregate([
+                {"$match": {"test_id": {"$in": ids}}},
+                {"$group": {"_id": "$test_id", "n": {"$sum": 1}}},
+            ]).to_list(500)
+        }
         result = []
         for d in docs:
             d = test_out(d)
-            d["attempt_count"] = await db.test_attempts.count_documents({"test_id": d["id"]})
+            d["attempt_count"] = counts.get(d["id"], 0)
             result.append(d)
         return result
     my_courses = await enrolled_course_ids(user["id"])
     docs = await db.tests.find({"published": True, "course_id": {"$in": [None, *my_courses]}}).sort("created_at", -1).to_list(200)
+    my_attempts = {
+        a["test_id"]: a
+        for a in await db.test_attempts.find({"student_id": user["id"]}).to_list(500)
+    }
     result = []
     for d in docs:
         d = test_out(d, hide_answers=True)
-        attempt = await db.test_attempts.find_one({"test_id": d["id"], "student_id": user["id"]})
+        attempt = my_attempts.get(d["id"])
         d["my_attempt"] = {"score": attempt["score"], "total": attempt["total"]} if attempt else None
         result.append(d)
     return result
