@@ -34,6 +34,11 @@ Create a website with Edmingle LMS features for an educational academy providing
 - Forgot-password: POST /api/auth/forgot-password (token in password_reset_tokens, TTL 1h, reset link emailed + logged), POST /api/auth/reset-password (single-use, expiry checked). Pages /forgot-password + /reset-password?token=; link on login form.
 - Batch-scoped live classes: live_classes optional course_id/batch_id (names resolved); teacher form has course + batch selects; student visibility filter (global OR enrolled course + matching/global batch) applied to /api/live-classes AND student dashboard upcoming; scope badges in UI; scoped students notified on scheduling.
 
+### Phase 5 — Configurable Branding + Deployment Readiness (June 2026)
+- Academy name renamed to "Rohini's JAM Academy", fully configurable: frontend via REACT_APP_ACADEMY_NAME (frontend/.env) → src/lib/config.js ACADEMY_NAME constant (used in Landing, AuthPage, PortalLayout, Certificate, ForgotPassword, ResetPassword); backend via ACADEMY_NAME (backend/.env) → notify.py constant (email templates, reset email, welcome email, FastAPI title). index.html title updated.
+- All N+1 query patterns eliminated (aggregation $group + batched $in): courses.py (teacher_courses, my_enrollments, course_students), dashboard.py (teacher_analytics), tests.py (list_tests), assignments.py (list_assignments both roles).
+- Deployment agent: ✅ PASS — no blockers, ready to deploy to Emergent.
+
 ## Architecture
 - /app/backend: server.py (app + startup indexes/seed), database.py, auth_utils.py, seed.py, notify.py (Resend email + in-app notify), routers/{auth,courses,tests,live_classes,assignments,announcements,dashboard,payments,batches,files,certificates,notifications}.py, tests/{backend_test.py,test_new_features.py,test_iteration3.py}, uploads/ (file storage)
 - /app/frontend/src: App.js (routes incl /certificate/:courseId, /app/tests/:id/{review,leaderboard}, /forgot-password, /reset-password), lib/api.js (uploadFile/fileUrl helpers), context/AuthContext.jsx, components/{PortalLayout,EnrollModal,TeacherAnalytics,NotificationsBell}.jsx, pages/{Landing,AuthPage,ForgotPassword,ResetPassword,Dashboard,Courses,CourseDetail,LiveClasses,Tests,TakeTest,TestBuilder,TestResults,TestReview,Leaderboard,Certificate,Assignments,Announcements}.jsx
