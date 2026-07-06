@@ -18,11 +18,14 @@ async def send_email(to: str, subject: str, html: str):
         return None
     resend.api_key = api_key
     params = {
-        "from": os.environ.get("SENDER_EMAIL", "onboarding@resend.dev"),
+        "from": f"{ACADEMY_NAME} <{os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev')}>",
         "to": [to],
         "subject": subject,
         "html": html,
     }
+    reply_to = os.environ.get("REPLY_TO_EMAIL", "").strip()
+    if reply_to:
+        params["reply_to"] = [reply_to]
     try:
         result = await asyncio.to_thread(resend.Emails.send, params)
         logger.info(f"Email sent to {to}: {result.get('id') if isinstance(result, dict) else result}")
