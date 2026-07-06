@@ -49,6 +49,7 @@ logger = logging.getLogger(__name__)
 async def startup():
     await db.users.create_index("email", unique=True)
     await db.enrollments.create_index([("course_id", 1), ("student_id", 1)], unique=True)
+    await db.test_attempts.create_index([("test_id", 1), ("student_id", 1)], unique=True)
     await seed()
     logger.info("Startup complete: indexes ensured, seed data checked")
 
