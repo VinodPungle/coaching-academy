@@ -35,20 +35,33 @@ class GradeBody(BaseModel):
 async def list_assignments(user: dict = Depends(get_current_user)):
     if user["role"] in ("teacher", "admin"):
         docs = await db.assignments.find({"teacher_id": user["id"]}).sort("created_at", -1).to_list(200)
+        ids = [d["_id"] for d in docs]
+        counts = {
+            r["_id"]: r["n"]
+            for r in await db.submissions.aggregate([
+                {"$match": {"assignment_id": {"$in": ids}}},
+                {"$group": {"_id": "$assignment_id", "n": {"$sum": 1}}},
+            ]).to_list(500)
+        }
         result = []
         for d in docs:
             d["id"] = d.pop("_id")
-            d["submission_count"] = await db.submissions.count_documents({"assignment_id": d["id"]})
+            d["submission_count"] = counts.get(d["id"], 0)
             result.append(d)
         return result
     enrollments = await db.enrollments.find({"student_id": user["id"]}).to_list(500)
     my_courses = [e["course_id"] for e in enrollments]
     docs = await db.assignments.find({"course_id": {"$in": [None, *my_courses]}}).sort("created_at", -1).to_list(200)
+    assignment_ids = [d["_id"] for d in docs]
+    my_subs = {
+        s["assignment_id"]: s
+        for s in await db.submissions.find({"assignment_id": {"$in": assignment_ids}, "student_id": user["id"]}).to_list(500)
+    }
     result = []
     for d in docs:
         d["id"] = d.pop("_id")
-        sub = await db.submissions.find_one({"assignment_id": d["id"], "student_id": user["id"]})
-        if sub:
+        sub = my_subs.get(d["id"])
+        if sub and "_id" in sub:
             sub["id"] = sub.pop("_id")
         d["my_submission"] = sub
         result.append(d)
