@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { api, formatApiError } from "@/lib/api";
 import { toast } from "sonner";
@@ -8,8 +8,13 @@ const emptyQ = () => ({ text: "", options: ["", "", "", ""], correct_index: 0, m
 
 export default function TestBuilder() {
   const navigate = useNavigate();
-  const [meta, setMeta] = useState({ title: "", subject: "Physics", duration_min: 30 });
+  const [meta, setMeta] = useState({ title: "", subject: "Physics", duration_min: 30, course_id: "" });
   const [questions, setQuestions] = useState([emptyQ()]);
+  const [teacherCourses, setTeacherCourses] = useState([]);
+
+  useEffect(() => {
+    api.get("/teacher/courses").then((r) => setTeacherCourses(r.data));
+  }, []);
 
   const setQ = (i, patch) => setQuestions(questions.map((q, idx) => (idx === i ? { ...q, ...patch } : q)));
   const setOpt = (i, oi, v) => setQ(i, { options: questions[i].options.map((o, idx) => (idx === oi ? v : o)) });
@@ -24,6 +29,7 @@ export default function TestBuilder() {
     try {
       await api.post("/tests", {
         ...meta,
+        course_id: meta.course_id || null,
         duration_min: Number(meta.duration_min),
         published: true,
         questions: valid.map((q) => ({ ...q, marks: Number(q.marks), correct_index: Number(q.correct_index) })),
@@ -56,6 +62,13 @@ export default function TestBuilder() {
         <div>
           <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Duration (min)</label>
           <input data-testid="test-duration-input" type="number" min="1" value={meta.duration_min} onChange={(e) => setMeta({ ...meta, duration_min: e.target.value })} className="mt-1 w-full border border-zinc-300 px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Course (optional)</label>
+          <select data-testid="test-course-select" value={meta.course_id} onChange={(e) => setMeta({ ...meta, course_id: e.target.value })} className="mt-1 w-full border border-zinc-300 px-3 py-2 text-sm bg-white">
+            <option value="">All students</option>
+            {teacherCourses.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
+          </select>
         </div>
       </div>
 

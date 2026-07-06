@@ -15,11 +15,14 @@ class AssignmentBody(BaseModel):
     description: str = ""
     due_date: str = ""
     max_marks: int = 10
+    course_id: Optional[str] = None
 
 
 class SubmissionBody(BaseModel):
     content: str
     link: str = ""
+    file_url: str = ""
+    file_name: str = ""
 
 
 class GradeBody(BaseModel):
@@ -37,7 +40,9 @@ async def list_assignments(user: dict = Depends(get_current_user)):
             d["submission_count"] = await db.submissions.count_documents({"assignment_id": d["id"]})
             result.append(d)
         return result
-    docs = await db.assignments.find({}).sort("created_at", -1).to_list(200)
+    enrollments = await db.enrollments.find({"student_id": user["id"]}).to_list(500)
+    my_courses = [e["course_id"] for e in enrollments]
+    docs = await db.assignments.find({"course_id": {"$in": [None, *my_courses]}}).sort("created_at", -1).to_list(200)
     result = []
     for d in docs:
         d["id"] = d.pop("_id")
@@ -52,6 +57,13 @@ async def list_assignments(user: dict = Depends(get_current_user)):
 @router.post("/assignments")
 async def create_assignment(body: AssignmentBody, user: dict = Depends(require_role("teacher", "admin"))):
     doc = body.model_dump()
+    course_name = None
+    if body.course_id:
+        course = await db.courses.find_one({"_id": body.course_id})
+        if not course:
+            raise HTTPException(status_code=404, detail="Linked course not found")
+        course_name = course["title"]
+    doc["course_name"] = course_name
     doc.update({
         "_id": str(uuid.uuid4()),
         "teacher_id": user["id"],
@@ -87,6 +99,8 @@ async def submit_assignment(assignment_id: str, body: SubmissionBody, user: dict
         "student_name": user["name"],
         "content": body.content,
         "link": body.link,
+        "file_url": body.file_url,
+        "file_name": body.file_name,
         "grade": None,
         "feedback": "",
         "submitted_at": datetime.now(timezone.utc).isoformat(),

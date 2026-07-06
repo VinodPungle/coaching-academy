@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import { api, formatApiError } from "@/lib/api";
+import { api, formatApiError, uploadFile, fileUrl } from "@/lib/api";
+import EnrollModal from "@/components/EnrollModal";
 import { toast } from "sonner";
-import { PlayCircle, FileText, CheckCircle2, Circle, Plus, Users, ArrowLeft } from "lucide-react";
+import { PlayCircle, FileText, CheckCircle2, Circle, Plus, Users, ArrowLeft, Upload, Trash2 } from "lucide-react";
 
 export default function CourseDetail() {
   const { id } = useParams();
@@ -12,26 +13,23 @@ export default function CourseDetail() {
   const [students, setStudents] = useState([]);
   const [sectionTitle, setSectionTitle] = useState("");
   const [lessonForms, setLessonForms] = useState({});
+  const [showEnroll, setShowEnroll] = useState(false);
+  const [batches, setBatches] = useState([]);
+  const [batchForm, setBatchForm] = useState({ name: "", start_date: "", schedule: "", capacity: "" });
+  const [uploadingFor, setUploadingFor] = useState(null);
 
   const isOwner = user.role !== "student";
 
   const load = useCallback(() => {
     api.get(`/courses/${id}`).then((r) => setCourse(r.data));
+    api.get(`/courses/${id}/batches`).then((r) => setBatches(r.data));
     if (user.role !== "student") api.get(`/courses/${id}/students`).then((r) => setStudents(r.data));
   }, [id, user.role]);
   useEffect(load, [load]);
 
   if (!course) return <p className="text-sm text-zinc-500">Loading course…</p>;
 
-  const enroll = async () => {
-    try {
-      await api.post(`/courses/${id}/enroll`);
-      toast.success("Enrolled successfully");
-      load();
-    } catch (e) {
-      toast.error(formatApiError(e));
-    }
-  };
+  const enroll = () => setShowEnroll(true);
 
   const toggleComplete = async (lessonId) => {
     if (course.completed_lessons.includes(lessonId)) return;
@@ -55,6 +53,42 @@ export default function CourseDetail() {
     setLessonForms({ ...lessonForms, [sectionId]: { title: "", type: "video", url: "", duration: "" } });
     toast.success("Lesson added");
     load();
+  };
+
+  const addBatch = async (e) => {
+    e.preventDefault();
+    if (!batchForm.name.trim()) return;
+    try {
+      await api.post(`/courses/${id}/batches`, { ...batchForm, capacity: batchForm.capacity ? Number(batchForm.capacity) : null });
+      setBatchForm({ name: "", start_date: "", schedule: "", capacity: "" });
+      toast.success("Batch created");
+      load();
+    } catch (err) {
+      toast.error(formatApiError(err));
+    }
+  };
+
+  const removeBatch = async (batchId) => {
+    await api.delete(`/batches/${batchId}`);
+    toast.success("Batch deleted");
+    load();
+  };
+
+  const handleLessonFile = async (sectionId, file) => {
+    if (!file) return;
+    setUploadingFor(sectionId);
+    try {
+      const res = await uploadFile(file);
+      setLessonForms((prev) => ({
+        ...prev,
+        [sectionId]: { title: "", duration: "", ...prev[sectionId], url: res.url, type: "pdf" },
+      }));
+      toast.success(`Uploaded ${res.filename}`);
+    } catch (err) {
+      toast.error(formatApiError(err));
+    } finally {
+      setUploadingFor(null);
+    }
   };
 
   const setLF = (sid, k, v) =>
@@ -88,6 +122,12 @@ export default function CourseDetail() {
           <div className="shrink-0 border border-zinc-200 p-4 w-48">
             <div className="flex justify-between text-xs text-zinc-500 mb-1.5"><span>Progress</span><span className="font-semibold text-zinc-950">{progress}%</span></div>
             <div className="h-1.5 bg-zinc-100"><div className="h-full bg-blue-700" style={{ width: `${progress}%` }} /></div>
+            {course.my_batch && (
+              <p className="mt-3 text-xs text-zinc-500" data-testid="my-batch-info">
+                Batch: <span className="font-semibold text-zinc-950">{course.my_batch.name}</span>
+                {course.my_batch.schedule && <span className="block mt-0.5">{course.my_batch.schedule}</span>}
+              </p>
+            )}
           </div>
         )}
       </div>
@@ -121,7 +161,7 @@ export default function CourseDetail() {
                 <div key={lesson.id} className="px-5 py-3 border-b border-zinc-100 last:border-0 flex items-center gap-3" data-testid={`lesson-${lesson.id}`}>
                   {lesson.type === "video" ? <PlayCircle className="w-4 h-4 text-blue-700 shrink-0" /> : <FileText className="w-4 h-4 text-red-600 shrink-0" />}
                   <div className="flex-1 min-w-0">
-                    <a href={lesson.url || "#"} target="_blank" rel="noreferrer" className="text-sm font-medium hover:text-blue-700 hover:underline">{lesson.title}</a>
+                    <a href={fileUrl(lesson.url) || "#"} target="_blank" rel="noreferrer" className="text-sm font-medium hover:text-blue-700 hover:underline">{lesson.title}</a>
                     <span className="text-xs text-zinc-400 ml-2">{lesson.duration}</span>
                   </div>
                   {!isOwner && course.enrolled && (
@@ -133,21 +173,85 @@ export default function CourseDetail() {
               );
             })}
             {isOwner && (
-              <div className="px-5 py-3 bg-zinc-50 border-t border-zinc-200 grid sm:grid-cols-5 gap-2">
-                <input data-testid={`lesson-title-input-${section.id}`} value={lessonForms[section.id]?.title || ""} onChange={(e) => setLF(section.id, "title", e.target.value)} placeholder="Lesson title" className="sm:col-span-2 border border-zinc-300 px-2.5 py-1.5 text-sm" />
-                <select value={lessonForms[section.id]?.type || "video"} onChange={(e) => setLF(section.id, "type", e.target.value)} className="border border-zinc-300 px-2 py-1.5 text-sm bg-white">
-                  <option value="video">Video</option>
-                  <option value="pdf">PDF / Notes</option>
-                </select>
-                <input value={lessonForms[section.id]?.url || ""} onChange={(e) => setLF(section.id, "url", e.target.value)} placeholder="URL" className="border border-zinc-300 px-2.5 py-1.5 text-sm" />
-                <button type="button" onClick={() => addLesson(section.id)} data-testid={`add-lesson-button-${section.id}`} className="px-3 py-1.5 text-sm font-semibold border border-zinc-300 bg-white hover:bg-zinc-100">
-                  Add lesson
-                </button>
+              <div className="px-5 py-3 bg-zinc-50 border-t border-zinc-200 space-y-2">
+                <div className="grid sm:grid-cols-5 gap-2">
+                  <input data-testid={`lesson-title-input-${section.id}`} value={lessonForms[section.id]?.title || ""} onChange={(e) => setLF(section.id, "title", e.target.value)} placeholder="Lesson title" className="sm:col-span-2 border border-zinc-300 px-2.5 py-1.5 text-sm" />
+                  <select value={lessonForms[section.id]?.type || "video"} onChange={(e) => setLF(section.id, "type", e.target.value)} className="border border-zinc-300 px-2 py-1.5 text-sm bg-white">
+                    <option value="video">Video</option>
+                    <option value="pdf">PDF / Notes</option>
+                  </select>
+                  <input value={lessonForms[section.id]?.url || ""} onChange={(e) => setLF(section.id, "url", e.target.value)} placeholder="URL or upload →" className="border border-zinc-300 px-2.5 py-1.5 text-sm" />
+                  <button type="button" onClick={() => addLesson(section.id)} data-testid={`add-lesson-button-${section.id}`} className="px-3 py-1.5 text-sm font-semibold border border-zinc-300 bg-white hover:bg-zinc-100">
+                    Add lesson
+                  </button>
+                </div>
+                <label className="inline-flex items-center gap-2 text-xs font-semibold text-blue-700 cursor-pointer hover:underline">
+                  <Upload className="w-3.5 h-3.5" />
+                  {uploadingFor === section.id ? "Uploading…" : "Upload notes file (PDF, DOCX, images — max 25 MB)"}
+                  <input type="file" data-testid={`lesson-file-input-${section.id}`} className="hidden" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp,.txt,.pptx,.xlsx,.zip,.csv" onChange={(e) => handleLessonFile(section.id, e.target.files?.[0])} />
+                </label>
               </div>
             )}
           </div>
         ))}
       </div>
+
+      {isOwner && (
+        <div className="space-y-3">
+          <h2 className="font-heading text-xl font-bold">Batches ({batches.length})</h2>
+          <form onSubmit={addBatch} className="border border-zinc-200 p-5 grid sm:grid-cols-5 gap-2 items-end">
+            <div className="sm:col-span-2">
+              <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Batch name</label>
+              <input data-testid="batch-name-input" value={batchForm.name} onChange={(e) => setBatchForm({ ...batchForm, name: e.target.value })} placeholder="Weekend Batch" className="mt-1 w-full border border-zinc-300 px-2.5 py-1.5 text-sm" />
+            </div>
+            <div>
+              <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Start date</label>
+              <input data-testid="batch-start-input" type="date" value={batchForm.start_date} onChange={(e) => setBatchForm({ ...batchForm, start_date: e.target.value })} className="mt-1 w-full border border-zinc-300 px-2.5 py-1.5 text-sm" />
+            </div>
+            <div>
+              <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Schedule</label>
+              <input data-testid="batch-schedule-input" value={batchForm.schedule} onChange={(e) => setBatchForm({ ...batchForm, schedule: e.target.value })} placeholder="Sat–Sun, 10 AM" className="mt-1 w-full border border-zinc-300 px-2.5 py-1.5 text-sm" />
+            </div>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Capacity</label>
+                <input data-testid="batch-capacity-input" type="number" min="1" value={batchForm.capacity} onChange={(e) => setBatchForm({ ...batchForm, capacity: e.target.value })} placeholder="50" className="mt-1 w-full border border-zinc-300 px-2.5 py-1.5 text-sm" />
+              </div>
+              <button data-testid="add-batch-button" className="self-end px-4 py-1.5 text-sm font-semibold bg-blue-700 text-white hover:bg-blue-900">Add</button>
+            </div>
+          </form>
+          {batches.length > 0 && (
+            <div className="border border-zinc-200 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-zinc-50 text-left text-xs uppercase tracking-[0.1em] text-zinc-500">
+                  <tr>
+                    <th className="px-5 py-3 font-semibold">Batch</th>
+                    <th className="px-5 py-3 font-semibold">Schedule</th>
+                    <th className="px-5 py-3 font-semibold">Starts</th>
+                    <th className="px-5 py-3 font-semibold">Students</th>
+                    <th className="px-5 py-3"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {batches.map((b) => (
+                    <tr key={b.id} className="border-t border-zinc-100" data-testid={`batch-row-${b.id}`}>
+                      <td className="px-5 py-3 font-medium">{b.name}</td>
+                      <td className="px-5 py-3 text-zinc-500">{b.schedule || "—"}</td>
+                      <td className="px-5 py-3 text-zinc-500">{b.start_date || "—"}</td>
+                      <td className="px-5 py-3">{b.enrolled_count}{b.capacity ? ` / ${b.capacity}` : ""}</td>
+                      <td className="px-5 py-3 text-right">
+                        <button onClick={() => removeBatch(b.id)} data-testid={`delete-batch-${b.id}`} className="p-1.5 text-zinc-400 hover:text-red-600">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {isOwner && (
         <div className="space-y-3">
@@ -177,6 +281,13 @@ export default function CourseDetail() {
             </div>
           )}
         </div>
+      )}
+      {showEnroll && (
+        <EnrollModal
+          course={course}
+          onClose={() => setShowEnroll(false)}
+          onSuccess={() => { setShowEnroll(false); load(); }}
+        />
       )}
     </div>
   );

@@ -127,6 +127,22 @@ async def seed():
                 "created_at": now.isoformat(),
             })
 
+    if await db.batches.count_documents({}) == 0:
+        courses = await db.courses.find({}).to_list(10)
+        now = datetime.now(timezone.utc)
+        for course in courses:
+            for name, sched, cap in [
+                ("Morning Batch", "Mon–Fri, 7:00–9:00 AM", 50),
+                ("Evening Batch", "Mon–Fri, 6:00–8:00 PM", 50),
+            ]:
+                await db.batches.insert_one({
+                    "_id": str(uuid.uuid4()), "course_id": course["_id"],
+                    "teacher_id": course["teacher_id"], "name": name,
+                    "start_date": (now + timedelta(days=7)).date().isoformat(),
+                    "schedule": sched, "capacity": cap,
+                    "created_at": now.isoformat(),
+                })
+
     if await db.announcements.count_documents({}) == 0:
         for title, body in [
             ("JAM 2027 Registration Opens Soon", "IIT Bombay has announced that JAM 2027 registrations will open in the first week of September. Keep your documents ready."),

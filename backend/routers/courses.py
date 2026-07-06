@@ -23,6 +23,10 @@ class SectionBody(BaseModel):
     title: str
 
 
+class EnrollBody(BaseModel):
+    batch_id: Optional[str] = None
+
+
 class LessonBody(BaseModel):
     title: str
     type: str = "video"
@@ -62,6 +66,11 @@ async def get_course(course_id: str, user: dict = Depends(get_current_user)):
     doc["enrolled"] = enrollment is not None
     doc["completed_lessons"] = enrollment.get("completed_lessons", []) if enrollment else []
     doc["enrolled_count"] = await db.enrollments.count_documents({"course_id": course_id})
+    doc["my_batch"] = None
+    if enrollment and enrollment.get("batch_id"):
+        batch = await db.batches.find_one({"_id": enrollment["batch_id"]})
+        if batch:
+            doc["my_batch"] = {"id": batch["_id"], "name": batch["name"], "schedule": batch.get("schedule", "")}
     return doc
 
 
@@ -122,17 +131,27 @@ async def add_lesson(course_id: str, section_id: str, body: LessonBody, user: di
 
 
 @router.post("/courses/{course_id}/enroll")
-async def enroll(course_id: str, user: dict = Depends(require_role("student"))):
+async def enroll(course_id: str, body: Optional[EnrollBody] = None, user: dict = Depends(require_role("student"))):
     course = await db.courses.find_one({"_id": course_id})
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
     existing = await db.enrollments.find_one({"course_id": course_id, "student_id": user["id"]})
     if existing:
         raise HTTPException(status_code=400, detail="Already enrolled")
+    batch_id = body.batch_id if body else None
+    if batch_id:
+        batch = await db.batches.find_one({"_id": batch_id, "course_id": course_id})
+        if not batch:
+            raise HTTPException(status_code=404, detail="Batch not found")
+        if batch.get("capacity"):
+            count = await db.enrollments.count_documents({"batch_id": batch_id})
+            if count >= batch["capacity"]:
+                raise HTTPException(status_code=400, detail="This batch is full")
     await db.enrollments.insert_one({
         "_id": str(uuid.uuid4()),
         "course_id": course_id,
         "student_id": user["id"],
+        "batch_id": batch_id,
         "completed_lessons": [],
         "enrolled_at": datetime.now(timezone.utc).isoformat(),
     })

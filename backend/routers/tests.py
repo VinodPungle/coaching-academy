@@ -1,12 +1,26 @@
 import uuid
 from datetime import datetime, timezone
-from typing import List, Dict
+from typing import List, Dict, Optional
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from database import db
 from auth_utils import get_current_user, require_role
 
 router = APIRouter(tags=["tests"])
+
+
+async def resolve_course(course_id):
+    if not course_id:
+        return None, None
+    course = await db.courses.find_one({"_id": course_id})
+    if not course:
+        raise HTTPException(status_code=404, detail="Linked course not found")
+    return course_id, course["title"]
+
+
+async def enrolled_course_ids(student_id: str):
+    enrollments = await db.enrollments.find({"student_id": student_id}).to_list(500)
+    return [e["course_id"] for e in enrollments]
 
 
 class QuestionBody(BaseModel):
@@ -21,6 +35,7 @@ class TestBody(BaseModel):
     subject: str
     duration_min: int = 60
     published: bool = True
+    course_id: Optional[str] = None
     questions: List[QuestionBody] = []
 
 
@@ -46,7 +61,8 @@ async def list_tests(user: dict = Depends(get_current_user)):
             d["attempt_count"] = await db.test_attempts.count_documents({"test_id": d["id"]})
             result.append(d)
         return result
-    docs = await db.tests.find({"published": True}).sort("created_at", -1).to_list(200)
+    my_courses = await enrolled_course_ids(user["id"])
+    docs = await db.tests.find({"published": True, "course_id": {"$in": [None, *my_courses]}}).sort("created_at", -1).to_list(200)
     result = []
     for d in docs:
         d = test_out(d, hide_answers=True)
@@ -75,12 +91,15 @@ async def get_test(test_id: str, user: dict = Depends(get_current_user)):
 @router.post("/tests")
 async def create_test(body: TestBody, user: dict = Depends(require_role("teacher", "admin"))):
     questions = [{"id": str(uuid.uuid4()), **q.model_dump()} for q in body.questions]
+    course_id, course_name = await resolve_course(body.course_id)
     doc = {
         "_id": str(uuid.uuid4()),
         "title": body.title,
         "subject": body.subject,
         "duration_min": body.duration_min,
         "published": body.published,
+        "course_id": course_id,
+        "course_name": course_name,
         "questions": questions,
         "total_marks": sum(q["marks"] for q in questions),
         "teacher_id": user["id"],
@@ -97,11 +116,14 @@ async def update_test(test_id: str, body: TestBody, user: dict = Depends(require
     if not existing:
         raise HTTPException(status_code=404, detail="Test not found")
     questions = [{"id": str(uuid.uuid4()), **q.model_dump()} for q in body.questions]
+    course_id, course_name = await resolve_course(body.course_id)
     update = {
         "title": body.title,
         "subject": body.subject,
         "duration_min": body.duration_min,
         "published": body.published,
+        "course_id": course_id,
+        "course_name": course_name,
         "questions": questions,
         "total_marks": sum(q["marks"] for q in questions),
     }

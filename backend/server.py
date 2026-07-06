@@ -11,7 +11,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 from database import db, client
 from seed import seed
-from routers import auth, courses, tests, live_classes, assignments, announcements, dashboard
+from routers import auth, courses, tests, live_classes, assignments, announcements, dashboard, payments, batches, files
 
 app = FastAPI(title="JAM Academy LMS")
 
@@ -30,6 +30,9 @@ api_router.include_router(live_classes.router)
 api_router.include_router(assignments.router)
 api_router.include_router(announcements.router)
 api_router.include_router(dashboard.router)
+api_router.include_router(payments.router)
+api_router.include_router(batches.router)
+api_router.include_router(files.router)
 
 app.include_router(api_router)
 

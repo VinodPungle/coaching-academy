@@ -35,7 +35,10 @@ export default function TestsPage() {
           <div key={t.id} className="border border-zinc-200 p-6 hover:border-zinc-300 hover:shadow-sm transition-all" data-testid={`test-card-${t.id}`}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <span className="text-xs uppercase tracking-[0.15em] font-semibold text-blue-700">{t.subject}</span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs uppercase tracking-[0.15em] font-semibold text-blue-700">{t.subject}</span>
+                  {t.course_name && <span className="text-[10px] uppercase tracking-[0.1em] font-bold bg-zinc-950 text-white px-1.5 py-0.5" data-testid={`test-course-badge-${t.id}`}>{t.course_name}</span>}
+                </div>
                 <h3 className="font-heading font-bold mt-1">{t.title}</h3>
               </div>
               <FileQuestion className="w-5 h-5 text-zinc-300 shrink-0" />

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { api, formatApiError } from "@/lib/api";
+import EnrollModal from "@/components/EnrollModal";
 import { toast } from "sonner";
 import { Plus, Users, Clock } from "lucide-react";
 
@@ -29,6 +30,7 @@ export default function CoursesPage() {
   const [courses, setCourses] = useState([]);
   const [myCourses, setMyCourses] = useState([]);
   const [showForm, setShowForm] = useState(false);
+  const [payCourse, setPayCourse] = useState(null);
   const [form, setForm] = useState({ title: "", subject: "Physics", description: "", price: 0, duration: "", thumbnail: "" });
 
   const isTeacher = user.role !== "student";
@@ -42,16 +44,6 @@ export default function CoursesPage() {
     }
   };
   useEffect(load, []);
-
-  const enroll = async (id) => {
-    try {
-      await api.post(`/courses/${id}/enroll`);
-      toast.success("Enrolled successfully");
-      load();
-    } catch (e) {
-      toast.error(formatApiError(e));
-    }
-  };
 
   const createCourse = async (e) => {
     e.preventDefault();
@@ -147,7 +139,7 @@ export default function CoursesPage() {
               ) : enrolledIds.has(course.id) ? (
                 <Link to={`/app/courses/${course.id}`} className="block text-center py-2 text-sm font-semibold border border-zinc-300 hover:bg-zinc-100 transition-colors">Enrolled — View course</Link>
               ) : (
-                <button onClick={() => enroll(course.id)} data-testid={`enroll-button-${course.id}`} className="w-full py-2 text-sm font-semibold bg-blue-700 text-white hover:bg-blue-900 transition-colors">Enroll now</button>
+                <button onClick={() => setPayCourse(course)} data-testid={`enroll-button-${course.id}`} className="w-full py-2 text-sm font-semibold bg-blue-700 text-white hover:bg-blue-900 transition-colors">Enroll now</button>
               )
             }
           />
@@ -157,6 +149,13 @@ export default function CoursesPage() {
         <p className="text-sm text-zinc-500 py-8" data-testid="courses-empty-state">
           {isTeacher ? "You haven't created any courses yet." : tab === "my" ? "You are not enrolled in any course yet. Browse All Courses to start." : "No courses available yet."}
         </p>
+      )}
+      {payCourse && (
+        <EnrollModal
+          course={payCourse}
+          onClose={() => setPayCourse(null)}
+          onSuccess={() => { setPayCourse(null); load(); }}
+        />
       )}
     </div>
   );
