@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Design &amp; Architecture — Rohini's JAM Academy LMS</title>
+<style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:860px;margin:0 auto;padding:48px 24px;color:#18181b;line-height:1.6}
+h1{font-family:Arial,sans-serif;font-size:32px;border-bottom:4px solid #1d4ed8;padding-bottom:12px}
+h2{font-family:Arial,sans-serif;font-size:22px;color:#1d4ed8;margin-top:40px;border-bottom:1px solid #e4e4e7;padding-bottom:6px}
+h3{font-family:Arial,sans-serif;font-size:16px;margin-top:24px}
+table{border-collapse:collapse;width:100%;font-size:13px;margin:12px 0}
+th,td{border:1px solid #d4d4d8;padding:7px 10px;text-align:left;vertical-align:top}
+th{background:#f4f4f5;font-family:Arial,sans-serif}
+code,pre{background:#f4f4f5;font-size:13px;font-family:Menlo,Consolas,monospace}
+code{padding:2px 6px}
+pre{padding:14px;overflow-x:auto;border:1px solid #e4e4e7;line-height:1.45}
+.toc{background:#fafafa;border:1px solid #e4e4e7;padding:16px 24px;font-size:14px}
+@media print{body{padding:0}.no-print{display:none}}
+</style>
+</head>
+<body>
+<p class="no-print" style="text-align:right;font-family:Arial"><button onclick="window.print()" style="padding:8px 16px;background:#1d4ed8;color:#fff;border:none;font-weight:bold;cursor:pointer">Print / Save as PDF</button></p>
+<h1>Rohini's JAM Academy LMS<br><small style="font-size:18px;color:#71717a">Design &amp; Architecture Document v1.0</small></h1>
+
+<div class="toc"><strong>Contents</strong>
+<ol><li>System Overview</li><li>Architecture</li><li>Design System</li><li>Data Model</li><li>API Surface</li><li>Key Flows</li><li>Third-Party Integrations</li></ol></div>
+
+<h2>1. System Overview</h2>
+<p>An Edmingle-style Learning Management System for IIT-JAM coaching with three roles — <strong>Student</strong>, <strong>Teacher</strong>, <strong>Admin</strong> — built to scale into a multi-academy SaaS. Features: course catalog with video/PDF curriculum &amp; progress tracking, batches/cohorts, payment checkout (Stripe/Razorpay placeholders in demo mode), live class scheduling (batch-scoped, Zoom-ready), timed auto-graded mock tests with review &amp; leaderboards, assignments with file submissions and grading, announcements, in-app + email (Resend) notifications, completion certificates, teacher analytics and an admin panel.</p>
+
+<h2>2. Architecture</h2>
+<pre>
+Browser (React SPA, port 3000)
+   │  HTTPS — all API calls prefixed /api → routed by K8s ingress to :8001
+   ▼
+FastAPI backend (uvicorn, 0.0.0.0:8001)
+   ├── routers/*  (feature-modular API)
+   ├── auth_utils (bcrypt + JWT Bearer/cookie, role guards)
+   ├── notify.py  (in-app notifications + Resend email, fire-and-forget)
+   ├── zoom_service.py (Server-to-Server OAuth, token cache)
+   └── uploads/   (file storage on disk, served via /api/files/{id})
+   ▼
+MongoDB (motor async driver; DB name from env DB_NAME)
+</pre>
+<table>
+<tr><th>Layer</th><th>Technology</th><th>Notes</th></tr>
+<tr><td>Frontend</td><td>React 19 (CRA + craco), Tailwind CSS, shadcn/ui, lucide-react, recharts, axios, sonner, dayjs</td><td>SPA with react-router; token in localStorage <code>jam_token</code></td></tr>
+<tr><td>Backend</td><td>FastAPI + uvicorn (hot reload), Pydantic v2, PyJWT, bcrypt, httpx, resend</td><td>All routes under <code>/api</code>; supervisor-managed</td></tr>
+<tr><td>Database</td><td>MongoDB via motor</td><td>UUID string <code>_id</code>s (JSON-safe, no ObjectId leakage)</td></tr>
+</table>
+
+<h2>3. Design System</h2>
+<table>
+<tr><th>Token</th><th>Value</th></tr>
+<tr><td>Style</td><td>Swiss / International Typographic — high-contrast light theme, sharp corners (no border radius), 1px zinc borders, generous whitespace</td></tr>
+<tr><td>Primary</td><td>Klein Blue <code>#1D4ED8</code> (actions, links, active nav)</td></tr>
+<tr><td>Accent</td><td>Signal Red <code>#E63946</code> / red-600 (live badges, alerts, destructive)</td></tr>
+<tr><td>Neutrals</td><td>zinc-50 … zinc-950 (backgrounds, borders, text)</td></tr>
+<tr><td>Headings font</td><td>Cabinet Grotesk (fontshare) — class <code>font-heading</code></td></tr>
+<tr><td>Body font</td><td>IBM Plex Sans (Google Fonts)</td></tr>
+<tr><td>Branding</td><td>Academy name configurable: <code>REACT_APP_ACADEMY_NAME</code> (frontend) / <code>ACADEMY_NAME</code> (backend) → <code>src/lib/config.js</code> &amp; <code>notify.py</code></td></tr>
+</table>
+
+<h2>4. Data Model (MongoDB collections)</h2>
+<table>
+<tr><th>Collection</th><th>Key fields</th></tr>
+<tr><td>users</td><td>_id(uuid), name, email(unique idx), password_hash(bcrypt), role(student|teacher|admin), created_at</td></tr>
+<tr><td>courses</td><td>_id, title, subject, description, thumbnail, price, duration, published, teacher_id, teacher_name, sections:[{id,title,lessons:[{id,title,type(video|pdf),url,duration}]}]</td></tr>
+<tr><td>enrollments</td><td>_id, course_id, student_id, batch_id?, completed_lessons:[lessonId], payment_id?, enrolled_at — unique idx (course_id,student_id)</td></tr>
+<tr><td>batches</td><td>_id, course_id, teacher_id, name, start_date, schedule, capacity</td></tr>
+<tr><td>tests</td><td>_id, title, subject, duration_min, published, course_id?, course_name?, total_marks, teacher_id, questions:[{id,text,options[4],correct_index,marks}]</td></tr>
+<tr><td>test_attempts</td><td>_id, test_id, student_id, answers{qid:optionIdx}, score, total, correct_count, question_count, submitted_at — unique idx (test_id,student_id)</td></tr>
+<tr><td>assignments</td><td>_id, title, subject, description, due_date, max_marks, course_id?, course_name?, teacher_id</td></tr>
+<tr><td>submissions</td><td>_id, assignment_id, student_id, student_name, content, link, file_url, file_name, grade, feedback, submitted_at</td></tr>
+<tr><td>live_classes</td><td>_id, title, subject, description, start_time(ISO), duration_min, meeting_link, course_id?, batch_id?, course_name?, batch_name?, zoom_meeting_id?, teacher_id</td></tr>
+<tr><td>announcements</td><td>_id, title, body, teacher_id, teacher_name, created_at</td></tr>
+<tr><td>payments</td><td>_id, student_id, course_id, course_title, batch_id?, amount, currency, method(stripe|razorpay), gateway(demo|…), status(pending|paid|failed), created_at, paid_at</td></tr>
+<tr><td>notifications</td><td>_id, user_id, title, body, link, read, created_at — idx (user_id, created_at desc)</td></tr>
+<tr><td>certificates</td><td>_id, cert_no(JAM-XXXXXXXX), student_id, student_name, course_id, course_title, subject, teacher_name, issued_at</td></tr>
+<tr><td>password_reset_tokens</td><td>_id(token), user_id, expires_at(TTL idx), used</td></tr>
+<tr><td>files</td><td>_id(uuid), filename, ext, content_type, size, uploader_id</td></tr>
+</table>
+
+<h2>5. API Surface (all prefixed /api)</h2>
+<table>
+<tr><th>Domain</th><th>Endpoints</th></tr>
+<tr><td>Auth</td><td>POST /auth/register · /auth/login · /auth/logout · GET /auth/me · POST /auth/forgot-password · /auth/reset-password</td></tr>
+<tr><td>Courses</td><td>GET/POST /courses · GET/PUT/DELETE /courses/{id} · POST …/sections · …/sections/{sid}/lessons · …/enroll · …/lessons/{lid}/complete · GET /courses/{id}/students · /teacher/courses · /student/enrollments</td></tr>
+<tr><td>Batches</td><td>GET/POST /courses/{id}/batches · DELETE /batches/{id} · GET /batches/{id}/students</td></tr>
+<tr><td>Tests</td><td>GET/POST /tests · GET/PUT/DELETE /tests/{id} · POST /tests/{id}/attempt · GET …/attempts · …/review · …/leaderboard · /student/attempts</td></tr>
+<tr><td>Assignments</td><td>GET/POST /assignments · DELETE /assignments/{id} · POST …/submit · GET …/submissions · PUT /submissions/{id}/grade</td></tr>
+<tr><td>Live classes</td><td>GET/POST /live-classes · DELETE /live-classes/{id} · GET /zoom/config</td></tr>
+<tr><td>Payments</td><td>GET /payments/config · POST /payments/checkout · /payments/{id}/confirm · GET /student/payments</td></tr>
+<tr><td>Files</td><td>POST /files/upload (multipart, 25MB, ext whitelist) · GET /files/{id}</td></tr>
+<tr><td>Notifications</td><td>GET /notifications · POST /notifications/read-all</td></tr>
+<tr><td>Certificates</td><td>GET /courses/{id}/certificate · /student/certificates</td></tr>
+<tr><td>Dashboards</td><td>GET /dashboard/student · /dashboard/teacher · /dashboard/teacher/analytics</td></tr>
+<tr><td>Admin</td><td>GET /admin/stats · /admin/users?q=&amp;role= · PUT /admin/users/{id}/role · DELETE /admin/users/{id} · GET /admin/payments</td></tr>
+</table>
+
+<h2>6. Key Flows</h2>
+<h3>Authentication</h3>
+<p>Register/login → bcrypt verify → JWT (HS256, 7-day exp, claims sub/email/role) returned in body and httpOnly cookie. Frontend stores token in localStorage and sends <code>Authorization: Bearer</code> via axios interceptor. <code>get_current_user</code> checks header then cookie; <code>require_role(*roles)</code> guards endpoints. Password reset: single-use token (secrets.token_urlsafe) with 1h TTL, emailed as link.</p>
+<h3>Enrollment &amp; payment (demo mode)</h3>
+<p>EnrollModal → GET payments/config (demo when gateway keys empty) → POST /payments/checkout (creates pending payment, validates batch capacity) → POST /payments/{id}/confirm → marks paid + creates enrollment + notifies student (email) and teacher. Free courses enroll directly. When real keys are added, confirm returns 501 until gateway verification is implemented.</p>
+<h3>Progress &amp; certificates</h3>
+<p>Marking a lesson complete does <code>$addToSet completed_lessons</code>; progress = completed/total lessons. At 100%, GET /courses/{id}/certificate issues (or returns) a certificate with unique cert_no.</p>
+<h3>Test lifecycle</h3>
+<p>Teacher publishes MCQs (optionally course-linked). Students see tests that are global or belong to enrolled courses; <code>correct_index</code> is stripped from student payloads. Attempt is auto-graded server-side, one per student (unique index). Review returns answers + correct indexes; leaderboard ranks by score desc, time asc, computes percentile.</p>
+<h3>Batch-scoped visibility</h3>
+<p><code>student_class_query()</code> builds <code>$or</code>: global classes, OR classes of enrolled courses where batch is null or matches the student's enrollment batch. Reused by live-class list and student dashboard.</p>
+<h3>Notifications</h3>
+<p><code>notify(user_ids, title, body, link, email_subject?)</code> inserts db.notifications docs and fire-and-forgets Resend emails (branded HTML template). Bell component polls every 30s.</p>
+
+<h2>7. Third-Party Integrations</h2>
+<table>
+<tr><th>Service</th><th>Status</th><th>Config (backend/.env)</th></tr>
+<tr><td>Resend (email)</td><td>ACTIVE — testing mode (delivers only to account owner until domain verified at resend.com/domains)</td><td>RESEND_API_KEY, SENDER_EMAIL</td></tr>
+<tr><td>Stripe / Razorpay</td><td>PLACEHOLDER — demo checkout simulates success</td><td>STRIPE_API_KEY, RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET</td></tr>
+<tr><td>Zoom (Server-to-Server OAuth)</td><td>WIRED — awaiting credentials; auto-create meeting checkbox disabled until set</td><td>ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET</td></tr>
+</table>
+<p style="margin-top:40px;color:#a1a1aa;font-size:12px;font-family:Arial">© 2026 Rohini's JAM Academy · Design &amp; Architecture v1.0</p>
+</body>
+</html>

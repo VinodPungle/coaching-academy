@@ -108,8 +108,13 @@ export default function Landing() {
       </section>
 
       <footer className="border-t border-zinc-200">
-        <div className="max-w-6xl mx-auto px-4 md:px-8 py-8 text-sm text-zinc-500 flex justify-between">
+        <div className="max-w-6xl mx-auto px-4 md:px-8 py-8 text-sm text-zinc-500 flex flex-wrap gap-4 justify-between">
           <span>© 2026 {ACADEMY_NAME}</span>
+          <div className="flex gap-5">
+            <a href="/docs/user-manual.html" target="_blank" rel="noreferrer" data-testid="footer-user-manual" className="hover:text-zinc-950 hover:underline">User Manual</a>
+            <a href="/docs/design-architecture.html" target="_blank" rel="noreferrer" data-testid="footer-architecture-doc" className="hover:text-zinc-950 hover:underline">Architecture</a>
+            <a href="/docs/developer-guide.html" target="_blank" rel="noreferrer" data-testid="footer-developer-guide" className="hover:text-zinc-950 hover:underline">Developer Guide</a>
+          </div>
           <span>Built for IIT-JAM aspirants</span>
         </div>
       </footer>

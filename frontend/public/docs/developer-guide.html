@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Developer Guide — Rohini's JAM Academy LMS</title>
+<style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:860px;margin:0 auto;padding:48px 24px;color:#18181b;line-height:1.6}
+h1{font-family:Arial,sans-serif;font-size:32px;border-bottom:4px solid #1d4ed8;padding-bottom:12px}
+h2{font-family:Arial,sans-serif;font-size:22px;color:#1d4ed8;margin-top:40px;border-bottom:1px solid #e4e4e7;padding-bottom:6px}
+h3{font-family:Arial,sans-serif;font-size:16px;margin-top:24px}
+table{border-collapse:collapse;width:100%;font-size:13px;margin:12px 0}
+th,td{border:1px solid #d4d4d8;padding:7px 10px;text-align:left;vertical-align:top}
+th{background:#f4f4f5;font-family:Arial,sans-serif}
+code,pre{background:#f4f4f5;font-size:13px;font-family:Menlo,Consolas,monospace}
+code{padding:2px 6px}
+pre{padding:14px;overflow-x:auto;border:1px solid #e4e4e7;line-height:1.45}
+.warn{background:#fffbeb;border-left:4px solid #d97706;padding:10px 16px;margin:14px 0;font-size:14px}
+.toc{background:#fafafa;border:1px solid #e4e4e7;padding:16px 24px;font-size:14px}
+@media print{body{padding:0}.no-print{display:none}}
+</style>
+</head>
+<body>
+<p class="no-print" style="text-align:right;font-family:Arial"><button onclick="window.print()" style="padding:8px 16px;background:#1d4ed8;color:#fff;border:none;font-weight:bold;cursor:pointer">Print / Save as PDF</button></p>
+<h1>Rohini's JAM Academy LMS<br><small style="font-size:18px;color:#71717a">Developer Guide v1.0</small></h1>
+
+<div class="toc"><strong>Contents</strong>
+<ol><li>Repository Structure</li><li>Running Locally</li><li>Environment Variables</li><li>Backend Conventions</li><li>Frontend Conventions</li><li>Activating Integrations</li><li>Testing</li><li>Common Tasks (How-To)</li></ol></div>
+
+<h2>1. Repository Structure</h2>
+<pre>
+/app
+├── backend/
+│   ├── server.py            # FastAPI app, CORS, router registration, startup (indexes + seed)
+│   ├── database.py          # motor client — db from MONGO_URL + DB_NAME
+│   ├── auth_utils.py        # bcrypt hash/verify, JWT create/decode, get_current_user, require_role
+│   ├── seed.py              # idempotent demo data (admin/teacher/student, courses, tests, batches…)
+│   ├── notify.py            # send_email (Resend), email_template, notify() in-app + email
+│   ├── zoom_service.py      # Server-to-Server OAuth token cache + create_zoom_meeting
+│   ├── uploads/             # uploaded files (lesson notes, submissions)
+│   ├── requirements.txt     # update ONLY via: pip install X && pip freeze &gt; requirements.txt
+│   ├── .env                 # secrets/config (never commit; not pushed to GitHub)
+│   ├── tests/               # pytest suites per iteration
+│   └── routers/             # one file per domain:
+│       auth.py courses.py tests.py live_classes.py assignments.py
+│       announcements.py dashboard.py payments.py batches.py files.py
+│       certificates.py notifications.py admin.py
+└── frontend/
+    ├── package.json         # update ONLY via: yarn add &lt;pkg&gt;
+    ├── .env                 # REACT_APP_BACKEND_URL, REACT_APP_ACADEMY_NAME
+    ├── public/docs/         # these downloadable documents
+    └── src/
+        ├── App.js           # all routes; Protected wrapper redirects to /auth
+        ├── index.css        # fonts (Cabinet Grotesk + IBM Plex Sans), .font-heading, tokens
+        ├── lib/api.js       # axios instance (+Bearer interceptor), formatApiError, uploadFile, fileUrl
+        ├── lib/config.js    # ACADEMY_NAME branding constant
+        ├── context/AuthContext.jsx
+        ├── components/      # PortalLayout (role-aware nav), EnrollModal, NotificationsBell,
+        │                    # TeacherAnalytics, AdminDashboard, ui/ (shadcn)
+        └── pages/           # one default-export component per route
+</pre>
+
+<h2>2. Running Locally</h2>
+<pre>
+# services are supervisor-managed
+sudo supervisorctl restart backend    # after .env changes or pip installs
+sudo supervisorctl restart frontend   # after yarn add
+tail -n 100 /var/log/supervisor/backend.err.log   # backend logs
+</pre>
+<p>Backend must stay on <code>0.0.0.0:8001</code>, frontend on <code>3000</code>. Every backend route must be prefixed <code>/api</code> (ingress routes /api → 8001, everything else → 3000). The frontend must always call <code>process.env.REACT_APP_BACKEND_URL</code>.</p>
+
+<h2>3. Environment Variables</h2>
+<h3>backend/.env</h3>
+<table>
+<tr><th>Key</th><th>Purpose</th></tr>
+<tr><td>MONGO_URL, DB_NAME</td><td>MongoDB connection (do not rename)</td></tr>
+<tr><td>CORS_ORIGINS</td><td>Comma-separated origins ("*" default)</td></tr>
+<tr><td>JWT_SECRET</td><td>HS256 signing key for tokens</td></tr>
+<tr><td>ADMIN_EMAIL / ADMIN_PASSWORD</td><td>Admin account seeded at startup</td></tr>
+<tr><td>STRIPE_API_KEY, RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET</td><td>Payment gateways — empty = demo mode (simulated success)</td></tr>
+<tr><td>RESEND_API_KEY, SENDER_EMAIL</td><td>Email sending — empty key = demo (logs only)</td></tr>
+<tr><td>FRONTEND_URL</td><td>Base URL used in password-reset links</td></tr>
+<tr><td>ACADEMY_NAME</td><td>Brand name used in emails / API title</td></tr>
+<tr><td>ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET</td><td>Zoom S2S OAuth — empty = auto-create disabled</td></tr>
+</table>
+<h3>frontend/.env</h3>
+<table>
+<tr><td>REACT_APP_BACKEND_URL</td><td>API base (do not hardcode URLs anywhere)</td></tr>
+<tr><td>REACT_APP_ACADEMY_NAME</td><td>Brand name shown across the UI</td></tr>
+</table>
+
+<h2>4. Backend Conventions</h2>
+<ul>
+<li><strong>IDs:</strong> UUID strings stored in <code>_id</code>; every response renames <code>_id → id</code> (<code>d["id"] = d.pop("_id")</code>). Never return raw ObjectIds.</li>
+<li><strong>Auth guards:</strong> <code>Depends(get_current_user)</code> for any-auth, <code>Depends(require_role("teacher","admin"))</code> for role-restricted. Students never receive <code>correct_index</code> (see <code>test_out(hide_answers=True)</code>).</li>
+<li><strong>Datetimes:</strong> <code>datetime.now(timezone.utc).isoformat()</code> strings, except <code>password_reset_tokens.expires_at</code> (native datetime for the TTL index).</li>
+<li><strong>Query performance:</strong> no N+1 loops — batch with <code>$in</code> maps or aggregation <code>$group</code> (see teacher_courses, teacher_analytics, list_tests, list_assignments for the pattern).</li>
+<li><strong>Notifications:</strong> call <code>await notify([...ids], title, body, link, email_subject=…, email_html=…)</code> — emails are fire-and-forget via <code>asyncio.create_task</code>; failures are logged, never raised.</li>
+<li><strong>New router:</strong> create <code>routers/x.py</code> with <code>router = APIRouter(tags=["x"])</code>, then import + <code>api_router.include_router(x.router)</code> in server.py. Indexes go in the startup event.</li>
+</ul>
+
+<h2>5. Frontend Conventions</h2>
+<ul>
+<li><strong>API calls:</strong> import <code>{ api, formatApiError }</code> from <code>lib/api.js</code>; wrap mutations in try/catch and surface errors with <code>toast.error(formatApiError(e))</code> (sonner).</li>
+<li><strong>Files:</strong> <code>uploadFile(file)</code> POSTs multipart and returns <code>{id,url,filename}</code>; render links with <code>fileUrl(url)</code> (prefixes backend URL for relative paths).</li>
+<li><strong>Routing:</strong> portal pages live under <code>/app/*</code> inside <code>PortalLayout</code> (guarded by <code>Protected</code>); standalone pages (certificate, reset-password) are separate routes. Role-aware nav in PortalLayout (<code>NAV</code> vs <code>ADMIN_NAV</code>).</li>
+<li><strong>Pages are role-aware</strong> — one page serves both roles (e.g. Tests, Assignments, LiveClasses branch on <code>user.role</code>).</li>
+<li><strong>Test IDs:</strong> every interactive/critical element carries a kebab-case <code>data-testid</code> (e.g. <code>auth-submit-button</code>, <code>enroll-button-{id}</code>). Keep this for new UI.</li>
+<li><strong>Styling:</strong> Tailwind utilities only, sharp corners, zinc borders, <code>font-heading</code> for headings, blue-700 primary. No inline hex except tokens already used.</li>
+</ul>
+
+<h2>6. Activating Integrations</h2>
+<h3>Stripe / Razorpay (currently demo)</h3>
+<ol>
+<li>Put real keys in backend/.env → <code>gateway_config()</code> flips <code>demo_mode</code> to false.</li>
+<li>Implement gateway verification in <code>routers/payments.py → confirm_payment</code> (currently returns 501 when keys exist): create a gateway order in <code>checkout</code>, verify signature/webhook in <code>confirm</code>, then reuse the existing enrollment + notification block.</li>
+<li>Frontend EnrollModal already selects method and shows/hides the demo notice automatically.</li>
+</ol>
+<h3>Zoom (wired, awaiting credentials)</h3>
+<ol>
+<li>marketplace.zoom.us → Develop → Build App → <strong>Server-to-Server OAuth</strong>; add scope <code>meeting:write:admin</code>; activate.</li>
+<li>Fill ZOOM_ACCOUNT_ID / ZOOM_CLIENT_ID / ZOOM_CLIENT_SECRET in backend/.env, restart backend.</li>
+<li><code>GET /api/zoom/config</code> now returns configured:true → the "Auto-create Zoom meeting" checkbox enables itself; created classes get <code>join_url</code> as meeting_link.</li>
+</ol>
+<h3>Resend full delivery</h3>
+<p>Verify a domain at resend.com/domains, then set <code>SENDER_EMAIL</code> to an address on that domain. Until then delivery is limited to the Resend account owner.</p>
+
+<h2>7. Testing</h2>
+<pre>
+cd /app/backend && python -m pytest tests/ -v      # 59+ API tests across 3 suites
+</pre>
+<p>Seeded accounts: admin@jamacademy.com/Admin@123 · teacher@jamacademy.com/Teacher@123 · student@jamacademy.com/Student@123. Historical reports live in <code>/app/test_reports/</code>. Password-reset tests extract the token from backend logs (<code>grep "Password reset link" /var/log/supervisor/backend.err.log</code>).</p>
+
+<h2>8. Common Tasks (How-To)</h2>
+<table>
+<tr><th>Task</th><th>Where</th></tr>
+<tr><td>Rename the academy</td><td>frontend/.env REACT_APP_ACADEMY_NAME + backend/.env ACADEMY_NAME, restart both</td></tr>
+<tr><td>Change seed/demo data</td><td>backend/seed.py (idempotent — only inserts when collections are empty)</td></tr>
+<tr><td>Add a lesson type</td><td>LessonBody in routers/courses.py + icon/handling in pages/CourseDetail.jsx</td></tr>
+<tr><td>Change upload limits/types</td><td>routers/files.py → ALLOWED_EXT, MAX_SIZE</td></tr>
+<tr><td>Add a notification trigger</td><td>call notify() from the relevant router (see courses.py enroll for the pattern)</td></tr>
+<tr><td>Change JWT lifetime</td><td>auth_utils.py create_access_token timedelta</td></tr>
+<tr><td>Add admin capability</td><td>routers/admin.py + pages/Admin*.jsx + ADMIN_NAV in PortalLayout</td></tr>
+<tr><td>Email template styling</td><td>notify.py email_template()</td></tr>
+</table>
+<div class="warn"><strong>Never</strong> hardcode URLs/ports/secrets, edit requirements.txt or package.json by hand, or remove the /api prefix — these break the managed deploy pipeline.</div>
+<p style="margin-top:40px;color:#a1a1aa;font-size:12px;font-family:Arial">© 2026 Rohini's JAM Academy · Developer Guide v1.0</p>
+</body>
+</html>
