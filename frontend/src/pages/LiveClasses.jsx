@@ -11,13 +11,17 @@ export default function LiveClasses() {
   const [showForm, setShowForm] = useState(false);
   const [teacherCourses, setTeacherCourses] = useState([]);
   const [batches, setBatches] = useState([]);
-  const [form, setForm] = useState({ title: "", subject: "Physics", description: "", start_time: "", duration_min: 60, meeting_link: "", course_id: "", batch_id: "" });
+  const [zoomReady, setZoomReady] = useState(false);
+  const [form, setForm] = useState({ title: "", subject: "Physics", description: "", start_time: "", duration_min: 60, meeting_link: "", course_id: "", batch_id: "", create_zoom: false });
 
   const isTeacher = user.role !== "student";
   const load = () => api.get("/live-classes").then((r) => setClasses(r.data));
   useEffect(() => {
     load();
-    if (user.role !== "student") api.get("/teacher/courses").then((r) => setTeacherCourses(r.data));
+    if (user.role !== "student") {
+      api.get("/teacher/courses").then((r) => setTeacherCourses(r.data));
+      api.get("/zoom/config").then((r) => setZoomReady(r.data.configured)).catch(() => {});
+    }
   }, []);
 
   const onCourseChange = (courseId) => {
@@ -38,7 +42,7 @@ export default function LiveClasses() {
       });
       toast.success("Live class scheduled");
       setShowForm(false);
-      setForm({ title: "", subject: "Physics", description: "", start_time: "", duration_min: 60, meeting_link: "", course_id: "", batch_id: "" });
+      setForm({ title: "", subject: "Physics", description: "", start_time: "", duration_min: 60, meeting_link: "", course_id: "", batch_id: "", create_zoom: false });
       load();
     } catch (err) {
       toast.error(formatApiError(err));
@@ -126,7 +130,18 @@ export default function LiveClasses() {
           </div>
           <div>
             <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Meeting link</label>
-            <input data-testid="class-link-input" value={form.meeting_link} onChange={(e) => setForm({ ...form, meeting_link: e.target.value })} placeholder="https://meet.google.com/…" className="mt-1 w-full border border-zinc-300 px-3 py-2 text-sm" />
+            <input data-testid="class-link-input" value={form.meeting_link} onChange={(e) => setForm({ ...form, meeting_link: e.target.value })} placeholder="https://meet.google.com/…" disabled={form.create_zoom} className="mt-1 w-full border border-zinc-300 px-3 py-2 text-sm disabled:opacity-50" />
+            <label className={`mt-2 flex items-center gap-2 text-xs font-semibold ${zoomReady ? "text-blue-700 cursor-pointer" : "text-zinc-400"}`}>
+              <input
+                type="checkbox"
+                data-testid="class-create-zoom-checkbox"
+                disabled={!zoomReady}
+                checked={form.create_zoom}
+                onChange={(e) => setForm({ ...form, create_zoom: e.target.checked, meeting_link: e.target.checked ? "" : form.meeting_link })}
+                className="accent-blue-700"
+              />
+              Auto-create Zoom meeting{!zoomReady && " (Zoom credentials not configured yet)"}
+            </label>
           </div>
           <div>
             <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Course (optional)</label>

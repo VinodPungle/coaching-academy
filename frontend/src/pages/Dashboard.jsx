@@ -4,6 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { BookOpen, FileQuestion, BarChart3, ClipboardList, Users, Radio, Plus } from "lucide-react";
 import { TeacherAnalytics } from "@/components/TeacherAnalytics";
+import { AdminDashboard } from "@/components/AdminDashboard";
 import dayjs from "dayjs";
 
 function StatCard({ icon: Icon, label, value, testid }) {
@@ -47,11 +48,14 @@ function UpcomingClasses({ classes }) {
 export default function Dashboard() {
   const { user } = useAuth();
   const [data, setData] = useState(null);
+  const isAdmin = user.role === "admin";
 
   useEffect(() => {
+    if (isAdmin) return;
     api.get(user.role === "student" ? "/dashboard/student" : "/dashboard/teacher").then((r) => setData(r.data));
-  }, [user.role]);
+  }, [user.role, isAdmin]);
 
+  if (isAdmin) return <AdminDashboard user={user} />;
   if (!data) return <p className="text-sm text-zinc-500" data-testid="dashboard-loading">Loading dashboard…</p>;
 
   if (user.role === "student") {

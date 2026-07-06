@@ -12,7 +12,7 @@ from starlette.middleware.cors import CORSMiddleware
 from database import db, client
 from seed import seed
 from notify import ACADEMY_NAME
-from routers import auth, courses, tests, live_classes, assignments, announcements, dashboard, payments, batches, files, certificates, notifications
+from routers import auth, courses, tests, live_classes, assignments, announcements, dashboard, payments, batches, files, certificates, notifications, admin
 
 app = FastAPI(title=f"{ACADEMY_NAME} LMS")
 
@@ -36,6 +36,7 @@ api_router.include_router(batches.router)
 api_router.include_router(files.router)
 api_router.include_router(certificates.router)
 api_router.include_router(notifications.router)
+api_router.include_router(admin.router)
 
 app.include_router(api_router)
 

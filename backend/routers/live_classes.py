@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from database import db
 from auth_utils import get_current_user, require_role
 from notify import notify
+from zoom_service import zoom_configured, create_zoom_meeting
 
 router = APIRouter(tags=["live-classes"])
 
@@ -19,6 +20,12 @@ class LiveClassBody(BaseModel):
     meeting_link: str = ""
     course_id: Optional[str] = None
     batch_id: Optional[str] = None
+    create_zoom: bool = False
+
+
+@router.get("/zoom/config")
+async def zoom_config(user: dict = Depends(require_role("teacher", "admin"))):
+    return {"configured": zoom_configured()}
 
 
 async def student_class_query(student_id: str) -> dict:
@@ -56,12 +63,21 @@ async def create_live_class(body: LiveClassBody, user: dict = Depends(require_ro
                 raise HTTPException(status_code=404, detail="Batch not found for this course")
             batch_name = batch["name"]
     doc = body.model_dump()
+    doc.pop("create_zoom", None)
+    zoom_meeting_id = None
+    if body.create_zoom:
+        if not zoom_configured():
+            raise HTTPException(status_code=400, detail="Zoom is not configured yet. Add Zoom credentials in backend settings or paste a meeting link manually.")
+        meeting = await create_zoom_meeting(body.title, body.start_time, body.duration_min)
+        doc["meeting_link"] = meeting["join_url"]
+        zoom_meeting_id = meeting.get("id")
     doc.update({
         "_id": str(uuid.uuid4()),
         "course_id": body.course_id,
         "batch_id": body.batch_id if body.course_id else None,
         "course_name": course_name,
         "batch_name": batch_name,
+        "zoom_meeting_id": zoom_meeting_id,
         "teacher_id": user["id"],
         "teacher_name": user["name"],
         "created_at": datetime.now(timezone.utc).isoformat(),

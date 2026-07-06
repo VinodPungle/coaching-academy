@@ -21,6 +21,8 @@ import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
 import AssignmentsPage from "@/pages/Assignments";
 import AnnouncementsPage from "@/pages/Announcements";
+import AdminUsers from "@/pages/AdminUsers";
+import AdminPayments from "@/pages/AdminPayments";
 
 function Protected({ children }) {
   const { user, loading } = useAuth();
@@ -72,6 +74,8 @@ function App() {
             <Route path="tests/:id/leaderboard" element={<Leaderboard />} />
             <Route path="assignments" element={<AssignmentsPage />} />
             <Route path="announcements" element={<AnnouncementsPage />} />
+            <Route path="users" element={<AdminUsers />} />
+            <Route path="payments" element={<AdminPayments />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

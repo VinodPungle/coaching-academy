@@ -1,4 +1,5 @@
 import uuid
+import os
 from datetime import datetime, timezone, timedelta
 from database import db
 from auth_utils import hash_password
@@ -12,6 +13,17 @@ SUBJECT_THUMBS = {
 
 
 async def seed():
+    admin_email = os.environ.get("ADMIN_EMAIL", "").lower().strip()
+    if admin_email and not await db.users.find_one({"email": admin_email}):
+        await db.users.insert_one({
+            "_id": str(uuid.uuid4()),
+            "name": "Academy Admin",
+            "email": admin_email,
+            "password_hash": hash_password(os.environ.get("ADMIN_PASSWORD", "Admin@123")),
+            "role": "admin",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+
     teacher_email = "teacher@jamacademy.com"
     student_email = "student@jamacademy.com"
 

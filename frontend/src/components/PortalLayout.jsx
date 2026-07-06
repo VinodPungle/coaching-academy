@@ -3,7 +3,7 @@ import { useAuth } from "@/context/AuthContext";
 import { NotificationsBell } from "@/components/NotificationsBell";
 import { ACADEMY_NAME } from "@/lib/config";
 import {
-  LayoutDashboard, BookOpen, Radio, FileQuestion, ClipboardList, Megaphone, LogOut, GraduationCap,
+  LayoutDashboard, BookOpen, Radio, FileQuestion, ClipboardList, Megaphone, LogOut, GraduationCap, Users, IndianRupee,
 } from "lucide-react";
 
 const NAV = [
@@ -15,9 +15,17 @@ const NAV = [
   { to: "/app/announcements", label: "Announcements", icon: Megaphone, testid: "nav-announcements" },
 ];
 
+const ADMIN_NAV = [
+  { to: "/app/dashboard", label: "Dashboard", icon: LayoutDashboard, testid: "nav-dashboard" },
+  { to: "/app/users", label: "Users", icon: Users, testid: "nav-users" },
+  { to: "/app/payments", label: "Payments", icon: IndianRupee, testid: "nav-payments" },
+  { to: "/app/announcements", label: "Announcements", icon: Megaphone, testid: "nav-announcements" },
+];
+
 export default function PortalLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const nav = user?.role === "admin" ? ADMIN_NAV : NAV;
 
   const handleLogout = async () => {
     await logout();
@@ -32,7 +40,7 @@ export default function PortalLayout() {
           <span className="font-heading font-black tracking-tight text-lg">{ACADEMY_NAME}</span>
         </div>
         <nav className="flex-1 py-4 space-y-0.5">
-          {NAV.map(({ to, label, icon: Icon, testid }) => (
+          {nav.map(({ to, label, icon: Icon, testid }) => (
             <NavLink
               key={to}
               to={to}
@@ -70,7 +78,7 @@ export default function PortalLayout() {
         </button>
       </div>
       <div className="md:hidden fixed bottom-0 inset-x-0 z-40 flex border-t border-zinc-200 bg-white">
-        {NAV.map(({ to, icon: Icon }) => (
+        {nav.map(({ to, icon: Icon }) => (
           <NavLink key={to} to={to} className={({ isActive }) => `flex-1 flex justify-center py-3 ${isActive ? "text-blue-700" : "text-zinc-400"}`}>
             <Icon className="w-5 h-5" />
           </NavLink>
