@@ -1,0 +1,85 @@
+{
+  "project_overview": {
+    "theme": "Light",
+    "archetype": "Archetype 4 (Swiss & High-Contrast)",
+    "vibe": "Authority, clarity, function-first. High-end EdTech / SaaS.",
+    "primary_audience": "Students preparing for IIT-JAM and Teachers managing content."
+  },
+  "design_system": {
+    "colors": {
+      "background": "#FFFFFF",
+      "surface": "#F4F4F5",
+      "surface_hover": "#E4E4E7",
+      "primary": "#1D4ED8",
+      "primary_hover": "#1E3A8A",
+      "secondary": "#09090B",
+      "accent": "#E63946",
+      "border": "#E4E4E7",
+      "text_primary": "#09090B",
+      "text_secondary": "#71717A",
+      "text_inverse": "#FFFFFF"
+    },
+    "typography": {
+      "heading_font": "Cabinet Grotesk",
+      "body_font": "IBM Plex Sans",
+      "mono_font": "JetBrains Mono",
+      "rules": {
+        "h1": "text-4xl sm:text-5xl lg:text-6xl tracking-tighter font-black",
+        "h2": "text-2xl sm:text-3xl lg:text-4xl tracking-tight font-bold",
+        "body": "text-base leading-relaxed",
+        "labels": "text-xs uppercase tracking-[0.2em] font-semibold text-text_secondary"
+      }
+    },
+    "layout": {
+      "marketing_spacing": "Generous. Use p-8, p-12, py-24. Overlapping sections, bento grid for features.",
+      "dashboard_spacing": "Dense 'Control Room' grid. gap-4 or gap-6. p-6 internal padding.",
+      "radius": "rounded-none or rounded-sm for a sharp, authoritative tech feel."
+    },
+    "surfaces": {
+      "header": "Crystal Glass: bg-white/80 backdrop-blur-xl border-b border-zinc-200/50",
+      "dashboard_cards": "Grid Borders: Flat background, 1px solid border-zinc-200, no shadow. On hover: shadow-sm, border-zinc-300.",
+      "marketing_cards": "1px subtle border, sharp corners, minimal shadows."
+    }
+  },
+  "component_rules": {
+    "buttons": "Sharp corners. Primary: bg-[#1D4ED8] text-white hover:bg-[#1E3A8A]. Secondary: border border-[#E4E4E7] bg-white text-[#09090B] hover:bg-[#F4F4F5].",
+    "inputs": "Shadcn defaults customized to rounded-none or rounded-sm, border-[#E4E4E7], focus-visible:ring-[#1D4ED8].",
+    "navigation": "Sticky nav with Logo, Links, and Login/Register CTA. Mobile menu must use hamburger, desktop must show all links.",
+    "tables": "Shadcn Table for course/student management. Left-aligned, dense padding."
+  },
+  "testing": {
+    "data_testid_rule": "ALL interactive elements MUST have data-testid attributes in kebab-case, e.g., data-testid=\"login-submit-button\"."
+  },
+  "media": {
+    "hero_background": {
+      "url": "https://images.pexels.com/photos/16420237/pexels-photo-16420237.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Student studying in library for the main landing page hero section."
+    },
+    "student_dashboard_welcome": {
+      "url": "https://images.pexels.com/photos/6550173/pexels-photo-6550173.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Focused student for dashboard welcome banner."
+    },
+    "live_class_thumbnail": {
+      "url": "https://images.pexels.com/photos/8199134/pexels-photo-8199134.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Professor teaching a classroom, used for Live Class schedule thumbnails."
+    },
+    "teacher_profile_avatar": {
+      "url": "https://images.pexels.com/photos/8197557/pexels-photo-8197557.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Confident professor, used for teacher dashboard avatar and course instructor profiles."
+    },
+    "partner_logo": {
+      "url": "https://images.pexels.com/photos/21898300/pexels-photo-21898300.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Example partner/sponsor logo for 'Trusted by' section on landing page."
+    }
+  },
+  "pages": {
+    "landing_page": "Marketing focused. Big typography. Bento grid for features. Clear CTAs for Student/Teacher registration.",
+    "auth": "Split screen. Left: clean form. Right: contextual image or testimonial overlay.",
+    "student_dashboard": "Control room layout. Top: Stats (courses, tests). Middle: Upcoming live classes. Bottom: recent assignments.",
+    "teacher_dashboard": "Data-heavy. Tabs for Courses, Batches, Tests. Table views for student lists. Quick action buttons for 'Go Live' or 'Upload Note'."
+  },
+  "icons": {
+    "library": "lucide-react",
+    "instruction": "Use lucide-react for all UI icons. Size 16px to 24px depending on context. Stroke width 2 or 1.5 for elegance."
+  }
+}
