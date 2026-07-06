@@ -64,9 +64,14 @@ export default function TestsPage() {
                     <span className="text-sm font-semibold text-green-700">Attempted</span>
                     <span className="text-sm font-bold text-green-700" data-testid={`test-score-${t.id}`}>{t.my_attempt.score} / {t.my_attempt.total}</span>
                   </div>
-                  <Link to={`/app/tests/${t.id}/review`} data-testid={`review-test-${t.id}`} className="block text-center py-2 text-sm font-semibold border border-zinc-300 hover:bg-zinc-100 transition-colors">
-                    Review answers
-                  </Link>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Link to={`/app/tests/${t.id}/review`} data-testid={`review-test-${t.id}`} className="block text-center py-2 text-sm font-semibold border border-zinc-300 hover:bg-zinc-100 transition-colors">
+                      Review answers
+                    </Link>
+                    <Link to={`/app/tests/${t.id}/leaderboard`} data-testid={`leaderboard-test-${t.id}`} className="block text-center py-2 text-sm font-semibold border border-zinc-300 hover:bg-zinc-100 transition-colors">
+                      Leaderboard
+                    </Link>
+                  </div>
                 </div>
               ) : (
                 <Link to={`/app/tests/${t.id}/take`} data-testid={`start-test-${t.id}`} className="block text-center py-2.5 text-sm font-semibold bg-blue-700 text-white hover:bg-blue-900 transition-colors">

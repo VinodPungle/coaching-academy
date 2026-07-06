@@ -185,6 +185,40 @@ async def review_test(test_id: str, user: dict = Depends(require_role("student")
     return {"test": test_out(test), "attempt": attempt}
 
 
+@router.get("/tests/{test_id}/leaderboard")
+async def test_leaderboard(test_id: str, user: dict = Depends(get_current_user)):
+    test = await db.tests.find_one({"_id": test_id})
+    if not test:
+        raise HTTPException(status_code=404, detail="Test not found")
+    attempts = await db.test_attempts.find({"test_id": test_id}).sort([("score", -1), ("submitted_at", 1)]).to_list(500)
+    entries = []
+    my_rank = None
+    for i, a in enumerate(attempts):
+        is_me = a["student_id"] == user["id"]
+        if is_me:
+            my_rank = i + 1
+        entries.append({
+            "rank": i + 1,
+            "student_name": a["student_name"],
+            "score": a["score"],
+            "total": a["total"],
+            "submitted_at": a["submitted_at"],
+            "is_me": is_me,
+        })
+    my_percentile = None
+    if my_rank and len(attempts) > 0:
+        my_percentile = round((len(attempts) - my_rank) / len(attempts) * 100)
+    return {
+        "test_title": test["title"],
+        "subject": test["subject"],
+        "total_marks": test.get("total_marks", 0),
+        "attempt_count": len(attempts),
+        "entries": entries,
+        "my_rank": my_rank,
+        "my_percentile": my_percentile,
+    }
+
+
 @router.get("/tests/{test_id}/attempts")
 async def test_attempts(test_id: str, user: dict = Depends(require_role("teacher", "admin"))):
     docs = await db.test_attempts.find({"test_id": test_id}).sort("score", -1).to_list(500)

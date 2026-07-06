@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends
 from database import db
 from auth_utils import require_role
+from routers.live_classes import student_class_query
 
 router = APIRouter(tags=["dashboard"])
 
@@ -11,7 +12,8 @@ async def student_dashboard(user: dict = Depends(require_role("student"))):
     now = datetime.now(timezone.utc).isoformat()
     enrollments = await db.enrollments.find({"student_id": user["id"]}).to_list(200)
     attempts = await db.test_attempts.find({"student_id": user["id"]}).to_list(200)
-    upcoming = await db.live_classes.find({"start_time": {"$gte": now}}).sort("start_time", 1).to_list(5)
+    class_q = await student_class_query(user["id"])
+    upcoming = await db.live_classes.find({**class_q, "start_time": {"$gte": now}}).sort("start_time", 1).to_list(5)
     for c in upcoming:
         c["id"] = c.pop("_id")
     announcements = await db.announcements.find({}).sort("created_at", -1).to_list(3)

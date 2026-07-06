@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from database import db
 from auth_utils import require_role
+from notify import notify, email_template
 
 router = APIRouter(tags=["payments"])
 
@@ -88,6 +89,17 @@ async def confirm_payment(payment_id: str, user: dict = Depends(require_role("st
             "payment_id": payment_id,
             "enrolled_at": now,
         })
+    course = await db.courses.find_one({"_id": payment["course_id"]})
+    await notify(
+        [user["id"]],
+        "Payment successful",
+        f"₹{payment['amount']} paid for {payment['course_title']}. You are enrolled!",
+        f"/app/courses/{payment['course_id']}",
+        email_subject=f"Payment received — {payment['course_title']}",
+        email_html=email_template("Payment successful", f"Hi {user['name']},<br/><br/>We received your payment of <b>₹{payment['amount']}</b> for <b>{payment['course_title']}</b>. You are now enrolled — happy learning!"),
+    )
+    if course:
+        await notify([course["teacher_id"]], "New student enrolled", f"{user['name']} enrolled in {payment['course_title']} (paid ₹{payment['amount']}).", f"/app/courses/{payment['course_id']}")
     return {"message": "Payment successful. You are now enrolled.", "status": "paid"}
 
 

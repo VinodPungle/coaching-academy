@@ -16,9 +16,12 @@ function Scorecard({ attempt }) {
       <p className="text-sm text-zinc-500 mt-2">
         {attempt.correct_count} of {attempt.question_count} correct · {pct}%
       </p>
-      <div className="mt-8 flex justify-center gap-3">
+      <div className="mt-8 flex justify-center gap-3 flex-wrap">
         <Link to={`/app/tests/${attempt.test_id}/review`} data-testid="review-answers-button" className="inline-block px-6 py-2.5 text-sm font-semibold border border-zinc-300 hover:bg-zinc-100 transition-colors">
           Review answers
+        </Link>
+        <Link to={`/app/tests/${attempt.test_id}/leaderboard`} data-testid="scorecard-leaderboard-button" className="inline-block px-6 py-2.5 text-sm font-semibold border border-zinc-300 hover:bg-zinc-100 transition-colors">
+          Leaderboard
         </Link>
         <Link to="/app/tests" data-testid="back-to-tests-button" className="inline-block px-6 py-2.5 text-sm font-semibold bg-blue-700 text-white hover:bg-blue-900 transition-colors">
           Back to tests

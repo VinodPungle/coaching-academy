@@ -16,6 +16,9 @@ import TestBuilder from "@/pages/TestBuilder";
 import TestResults from "@/pages/TestResults";
 import TestReview from "@/pages/TestReview";
 import Certificate from "@/pages/Certificate";
+import Leaderboard from "@/pages/Leaderboard";
+import ForgotPassword from "@/pages/ForgotPassword";
+import ResetPassword from "@/pages/ResetPassword";
 import AssignmentsPage from "@/pages/Assignments";
 import AnnouncementsPage from "@/pages/Announcements";
 
@@ -38,6 +41,8 @@ function App() {
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/auth" element={<AuthPage />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route
             path="/certificate/:courseId"
             element={
@@ -64,6 +69,7 @@ function App() {
             <Route path="tests/:id/take" element={<TakeTest />} />
             <Route path="tests/:id/results" element={<TestResults />} />
             <Route path="tests/:id/review" element={<TestReview />} />
+            <Route path="tests/:id/leaderboard" element={<Leaderboard />} />
             <Route path="assignments" element={<AssignmentsPage />} />
             <Route path="announcements" element={<AnnouncementsPage />} />
           </Route>

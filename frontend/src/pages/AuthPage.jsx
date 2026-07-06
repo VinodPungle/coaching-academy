@@ -93,7 +93,14 @@ export default function AuthPage() {
                 />
               </div>
               <div>
-                <label className="text-xs uppercase tracking-[0.2em] font-semibold text-zinc-500">Password</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs uppercase tracking-[0.2em] font-semibold text-zinc-500">Password</label>
+                  {mode === "login" && (
+                    <Link to="/forgot-password" data-testid="forgot-password-link" className="text-xs font-semibold text-blue-700 hover:underline">
+                      Forgot password?
+                    </Link>
+                  )}
+                </div>
                 <input
                   data-testid="auth-password-input"
                   type="password"

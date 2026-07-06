@@ -11,7 +11,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 from database import db, client
 from seed import seed
-from routers import auth, courses, tests, live_classes, assignments, announcements, dashboard, payments, batches, files, certificates
+from routers import auth, courses, tests, live_classes, assignments, announcements, dashboard, payments, batches, files, certificates, notifications
 
 app = FastAPI(title="JAM Academy LMS")
 
@@ -34,6 +34,7 @@ api_router.include_router(payments.router)
 api_router.include_router(batches.router)
 api_router.include_router(files.router)
 api_router.include_router(certificates.router)
+api_router.include_router(notifications.router)
 
 app.include_router(api_router)
 
@@ -54,6 +55,8 @@ async def startup():
     await db.users.create_index("email", unique=True)
     await db.enrollments.create_index([("course_id", 1), ("student_id", 1)], unique=True)
     await db.test_attempts.create_index([("test_id", 1), ("student_id", 1)], unique=True)
+    await db.password_reset_tokens.create_index("expires_at", expireAfterSeconds=0)
+    await db.notifications.create_index([("user_id", 1), ("created_at", -1)])
     await seed()
     logger.info("Startup complete: indexes ensured, seed data checked")
 

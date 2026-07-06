@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from database import db
 from auth_utils import get_current_user, require_role
+from notify import notify
 
 router = APIRouter(tags=["announcements"])
 
@@ -32,6 +33,8 @@ async def create_announcement(body: AnnouncementBody, user: dict = Depends(requi
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.announcements.insert_one(doc)
+    students = await db.users.find({"role": "student"}).to_list(2000)
+    await notify([s["_id"] for s in students], "New announcement", body.title, "/app/announcements")
     doc["id"] = doc.pop("_id")
     return doc
 

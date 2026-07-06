@@ -9,23 +9,36 @@ export default function LiveClasses() {
   const { user } = useAuth();
   const [classes, setClasses] = useState([]);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ title: "", subject: "Physics", description: "", start_time: "", duration_min: 60, meeting_link: "" });
+  const [teacherCourses, setTeacherCourses] = useState([]);
+  const [batches, setBatches] = useState([]);
+  const [form, setForm] = useState({ title: "", subject: "Physics", description: "", start_time: "", duration_min: 60, meeting_link: "", course_id: "", batch_id: "" });
 
   const isTeacher = user.role !== "student";
   const load = () => api.get("/live-classes").then((r) => setClasses(r.data));
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    if (user.role !== "student") api.get("/teacher/courses").then((r) => setTeacherCourses(r.data));
+  }, []);
+
+  const onCourseChange = (courseId) => {
+    setForm({ ...form, course_id: courseId, batch_id: "" });
+    setBatches([]);
+    if (courseId) api.get(`/courses/${courseId}/batches`).then((r) => setBatches(r.data));
+  };
 
   const create = async (e) => {
     e.preventDefault();
     try {
       await api.post("/live-classes", {
         ...form,
+        course_id: form.course_id || null,
+        batch_id: form.batch_id || null,
         duration_min: Number(form.duration_min),
         start_time: new Date(form.start_time).toISOString(),
       });
       toast.success("Live class scheduled");
       setShowForm(false);
-      setForm({ title: "", subject: "Physics", description: "", start_time: "", duration_min: 60, meeting_link: "" });
+      setForm({ title: "", subject: "Physics", description: "", start_time: "", duration_min: 60, meeting_link: "", course_id: "", batch_id: "" });
       load();
     } catch (err) {
       toast.error(formatApiError(err));
@@ -51,6 +64,11 @@ export default function LiveClasses() {
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs uppercase tracking-[0.15em] font-semibold text-blue-700">{c.subject}</span>
           {!isPast && <span className="text-[10px] uppercase tracking-[0.15em] font-bold bg-red-600 text-white px-1.5 py-0.5">Upcoming</span>}
+          {c.course_name && (
+            <span className="text-[10px] uppercase tracking-[0.1em] font-bold bg-zinc-950 text-white px-1.5 py-0.5" data-testid={`class-scope-badge-${c.id}`}>
+              {c.course_name}{c.batch_name ? ` · ${c.batch_name}` : ""}
+            </span>
+          )}
         </div>
         <h3 className="font-heading font-bold mt-0.5">{c.title}</h3>
         <p className="text-xs text-zinc-500 mt-1">{c.description}</p>
@@ -109,6 +127,20 @@ export default function LiveClasses() {
           <div>
             <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Meeting link</label>
             <input data-testid="class-link-input" value={form.meeting_link} onChange={(e) => setForm({ ...form, meeting_link: e.target.value })} placeholder="https://meet.google.com/…" className="mt-1 w-full border border-zinc-300 px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Course (optional)</label>
+            <select data-testid="class-course-select" value={form.course_id} onChange={(e) => onCourseChange(e.target.value)} className="mt-1 w-full border border-zinc-300 px-3 py-2 text-sm bg-white">
+              <option value="">All students</option>
+              {teacherCourses.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Batch (optional)</label>
+            <select data-testid="class-batch-select" value={form.batch_id} onChange={(e) => setForm({ ...form, batch_id: e.target.value })} disabled={!form.course_id} className="mt-1 w-full border border-zinc-300 px-3 py-2 text-sm bg-white disabled:opacity-50">
+              <option value="">All batches</option>
+              {batches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
           </div>
           <div className="sm:col-span-2">
             <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Description</label>

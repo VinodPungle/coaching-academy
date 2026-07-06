@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from database import db
 from auth_utils import get_current_user, require_role
+from notify import notify, email_template
 
 router = APIRouter(tags=["assignments"])
 
@@ -120,9 +121,21 @@ async def list_submissions(assignment_id: str, user: dict = Depends(require_role
 
 @router.put("/submissions/{submission_id}/grade")
 async def grade_submission(submission_id: str, body: GradeBody, user: dict = Depends(require_role("teacher", "admin"))):
-    result = await db.submissions.update_one(
+    sub = await db.submissions.find_one({"_id": submission_id})
+    if not sub:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    await db.submissions.update_one(
         {"_id": submission_id}, {"$set": {"grade": body.grade, "feedback": body.feedback}}
     )
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Submission not found")
+    assignment = await db.assignments.find_one({"_id": sub["assignment_id"]})
+    a_title = assignment["title"] if assignment else "your assignment"
+    max_marks = assignment.get("max_marks", "") if assignment else ""
+    await notify(
+        [sub["student_id"]],
+        "Assignment graded",
+        f"{a_title}: {body.grade}/{max_marks}" + (f" — \"{body.feedback}\"" if body.feedback else ""),
+        "/app/assignments",
+        email_subject=f"Your assignment has been graded — {a_title}",
+        email_html=email_template("Assignment graded", f"Hi {sub['student_name']},<br/><br/><b>{a_title}</b> has been graded: <b>{body.grade}/{max_marks}</b>.{'<br/><br/>Feedback: ' + body.feedback if body.feedback else ''}"),
+    )
     return {"message": "Graded"}

@@ -1,5 +1,6 @@
 import { NavLink, useNavigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { NotificationsBell } from "@/components/NotificationsBell";
 import {
   LayoutDashboard, BookOpen, Radio, FileQuestion, ClipboardList, Megaphone, LogOut, GraduationCap,
 } from "lucide-react";
@@ -76,6 +77,7 @@ export default function PortalLayout() {
       </div>
 
       <main className="flex-1 md:ml-60 pt-14 md:pt-0 pb-16 md:pb-0">
+        <NotificationsBell />
         <div className="p-4 md:p-8 max-w-6xl mx-auto">
           <Outlet />
         </div>
