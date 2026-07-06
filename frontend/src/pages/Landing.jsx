@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { GraduationCap, Radio, FileQuestion, BarChart3, BookOpen, Award, ArrowRight, Users } from "lucide-react";
+import { ACADEMY_NAME } from "@/lib/config";
 
 const FEATURES = [
   { icon: Radio, title: "Live Classes", desc: "Interactive live sessions with IIT alumni faculty, auto-recorded for revision." },
@@ -19,7 +20,7 @@ export default function Landing() {
         <div className="max-w-6xl mx-auto flex items-center justify-between px-4 md:px-8 h-16">
           <div className="flex items-center gap-2">
             <GraduationCap className="w-7 h-7 text-blue-700" />
-            <span className="font-heading font-black tracking-tight text-xl">JAM Academy</span>
+            <span className="font-heading font-black tracking-tight text-xl">{ACADEMY_NAME}</span>
           </div>
           <div className="flex items-center gap-3">
             <Link to="/auth?mode=login" data-testid="header-login-link" className="px-4 py-2 text-sm font-semibold border border-zinc-300 hover:bg-zinc-100 transition-colors">
@@ -108,7 +109,7 @@ export default function Landing() {
 
       <footer className="border-t border-zinc-200">
         <div className="max-w-6xl mx-auto px-4 md:px-8 py-8 text-sm text-zinc-500 flex justify-between">
-          <span>© 2026 JAM Academy</span>
+          <span>© 2026 {ACADEMY_NAME}</span>
           <span>Built for IIT-JAM aspirants</span>
         </div>
       </footer>

@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { api, formatApiError } from "@/lib/api";
 import { GraduationCap, Printer, ArrowLeft, Award } from "lucide-react";
 import dayjs from "dayjs";
+import { ACADEMY_NAME } from "@/lib/config";
 
 export default function Certificate() {
   const { courseId } = useParams();
@@ -47,7 +48,7 @@ export default function Certificate() {
 
           <div className="flex items-center justify-center gap-2">
             <GraduationCap className="w-7 h-7 text-blue-700" />
-            <span className="font-heading font-black tracking-tight text-xl">JAM Academy</span>
+            <span className="font-heading font-black tracking-tight text-xl">{ACADEMY_NAME}</span>
           </div>
           <p className="mt-8 text-xs uppercase tracking-[0.35em] text-zinc-500">Certificate of Completion</p>
           <p className="mt-8 text-sm text-zinc-500">This is to certify that</p>

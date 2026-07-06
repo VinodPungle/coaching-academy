@@ -8,6 +8,8 @@ from database import db
 
 logger = logging.getLogger(__name__)
 
+ACADEMY_NAME = os.environ.get("ACADEMY_NAME", "Rohini's JAM Academy")
+
 
 async def send_email(to: str, subject: str, html: str):
     api_key = os.environ.get("RESEND_API_KEY", "").strip()
@@ -38,7 +40,7 @@ def email_template(title: str, body: str, cta_label: str = "", cta_url: str = ""
     return f"""<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:32px 0">
 <tr><td align="center">
 <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #e4e4e7">
-<tr><td style="background:#09090b;padding:20px 32px"><span style="color:#ffffff;font-family:Arial,sans-serif;font-weight:bold;font-size:18px">JAM Academy</span></td></tr>
+<tr><td style="background:#09090b;padding:20px 32px"><span style="color:#ffffff;font-family:Arial,sans-serif;font-weight:bold;font-size:18px">{ACADEMY_NAME}</span></td></tr>
 <tr><td style="padding:32px">
 <table cellpadding="0" cellspacing="0" width="100%">
 <tr><td style="font-family:Arial,sans-serif;font-size:20px;font-weight:bold;color:#09090b">{title}</td></tr>
@@ -46,7 +48,7 @@ def email_template(title: str, body: str, cta_label: str = "", cta_url: str = ""
 {button}
 </table>
 </td></tr>
-<tr><td style="padding:16px 32px;border-top:1px solid #e4e4e7;font-family:Arial,sans-serif;font-size:11px;color:#a1a1aa">JAM Academy · IIT-JAM Coaching · This is an automated message.</td></tr>
+<tr><td style="padding:16px 32px;border-top:1px solid #e4e4e7;font-family:Arial,sans-serif;font-size:11px;color:#a1a1aa">{ACADEMY_NAME} · IIT-JAM Coaching · This is an automated message.</td></tr>
 </table>
 </td></tr>
 </table>"""

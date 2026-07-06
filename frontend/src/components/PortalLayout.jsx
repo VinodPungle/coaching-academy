@@ -1,6 +1,7 @@
 import { NavLink, useNavigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { NotificationsBell } from "@/components/NotificationsBell";
+import { ACADEMY_NAME } from "@/lib/config";
 import {
   LayoutDashboard, BookOpen, Radio, FileQuestion, ClipboardList, Megaphone, LogOut, GraduationCap,
 } from "lucide-react";
@@ -28,7 +29,7 @@ export default function PortalLayout() {
       <aside className="hidden md:flex w-60 flex-col border-r border-zinc-200 bg-zinc-50 fixed inset-y-0">
         <div className="flex items-center gap-2 px-5 h-16 border-b border-zinc-200">
           <GraduationCap className="w-6 h-6 text-blue-700" />
-          <span className="font-heading font-black tracking-tight text-lg">JAM Academy</span>
+          <span className="font-heading font-black tracking-tight text-lg">{ACADEMY_NAME}</span>
         </div>
         <nav className="flex-1 py-4 space-y-0.5">
           {NAV.map(({ to, label, icon: Icon, testid }) => (
@@ -63,7 +64,7 @@ export default function PortalLayout() {
       </aside>
 
       <div className="md:hidden fixed top-0 inset-x-0 z-40 flex items-center justify-between border-b border-zinc-200 bg-white/80 backdrop-blur-xl px-4 h-14">
-        <span className="font-heading font-black">JAM Academy</span>
+        <span className="font-heading font-black">{ACADEMY_NAME}</span>
         <button onClick={handleLogout} data-testid="mobile-logout-button" className="text-sm font-medium text-zinc-600">
           Log out
         </button>

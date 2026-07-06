@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from database import db
 from auth_utils import get_current_user, require_role
-from notify import notify, email_template
+from notify import notify, email_template, ACADEMY_NAME
 
 router = APIRouter(tags=["courses"])
 
@@ -161,7 +161,7 @@ async def enroll(course_id: str, body: Optional[EnrollBody] = None, user: dict =
         "Enrollment confirmed",
         f"You are enrolled in {course['title']}.",
         f"/app/courses/{course_id}",
-        email_subject=f"Welcome to {course['title']} — JAM Academy",
+        email_subject=f"Welcome to {course['title']} — {ACADEMY_NAME}",
         email_html=email_template("Enrollment confirmed", f"Hi {user['name']},<br/><br/>You are now enrolled in <b>{course['title']}</b>. Head to your dashboard to start learning."),
     )
     await notify([course["teacher_id"]], "New student enrolled", f"{user['name']} enrolled in {course['title']}.", f"/app/courses/{course_id}")

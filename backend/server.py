@@ -11,16 +11,17 @@ from starlette.middleware.cors import CORSMiddleware
 
 from database import db, client
 from seed import seed
+from notify import ACADEMY_NAME
 from routers import auth, courses, tests, live_classes, assignments, announcements, dashboard, payments, batches, files, certificates, notifications
 
-app = FastAPI(title="JAM Academy LMS")
+app = FastAPI(title=f"{ACADEMY_NAME} LMS")
 
 api_router = APIRouter(prefix="/api")
 
 
 @api_router.get("/")
 async def root():
-    return {"message": "JAM Academy LMS API"}
+    return {"message": f"{ACADEMY_NAME} LMS API"}
 
 
 api_router.include_router(auth.router)

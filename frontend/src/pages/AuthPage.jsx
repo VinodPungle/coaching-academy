@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { formatApiError } from "@/lib/api";
 import { GraduationCap } from "lucide-react";
+import { ACADEMY_NAME } from "@/lib/config";
 
 export default function AuthPage() {
   const [params] = useSearchParams();
@@ -38,7 +39,7 @@ export default function AuthPage() {
       <div className="flex flex-col px-6 py-8 md:px-16 md:py-12">
         <Link to="/" className="flex items-center gap-2 w-fit" data-testid="auth-home-link">
           <GraduationCap className="w-6 h-6 text-blue-700" />
-          <span className="font-heading font-black tracking-tight text-lg">JAM Academy</span>
+          <span className="font-heading font-black tracking-tight text-lg">{ACADEMY_NAME}</span>
         </Link>
         <div className="flex-1 flex items-center">
           <div className="w-full max-w-sm">
@@ -126,7 +127,7 @@ export default function AuthPage() {
             </form>
 
             <p className="mt-6 text-sm text-zinc-500">
-              {mode === "login" ? "New to JAM Academy?" : "Already have an account?"}{" "}
+              {mode === "login" ? `New to ${ACADEMY_NAME}?` : "Already have an account?"}{" "}
               <button
                 data-testid="auth-mode-toggle"
                 onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(""); }}

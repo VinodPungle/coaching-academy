@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Depends, Response
 from pydantic import BaseModel, EmailStr
 from database import db
 from auth_utils import hash_password, verify_password, create_access_token, get_current_user
-from notify import send_email, email_template
+from notify import send_email, email_template, ACADEMY_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -107,10 +107,10 @@ async def forgot_password(body: ForgotPasswordBody):
         logger.info(f"Password reset link for {email}: {link}")
         asyncio.create_task(send_email(
             email,
-            "Reset your JAM Academy password",
+            f"Reset your {ACADEMY_NAME} password",
             email_template(
                 "Reset your password",
-                f"Hi {user['name']},<br/><br/>We received a request to reset your JAM Academy password. Click the button below to choose a new one. This link expires in 1 hour.<br/><br/>If you didn't request this, you can safely ignore this email.",
+                f"Hi {user['name']},<br/><br/>We received a request to reset your {ACADEMY_NAME} password. Click the button below to choose a new one. This link expires in 1 hour.<br/><br/>If you didn't request this, you can safely ignore this email.",
                 "Reset password",
                 link,
             ),
