@@ -28,9 +28,15 @@ Create a website with Edmingle LMS features for an educational academy providing
 - Test answer review: GET /api/tests/{id}/review (student, requires attempt) returns questions with correct_index + student answers. /app/tests/:id/review page shows verdict per question (+marks/0/Skipped), correct answer green, wrong choice red. Linked from scorecard and attempted test cards.
 - Teacher analytics: GET /api/dashboard/teacher/analytics (enrollments per course, test avg%/attempts, assignment graded vs pending). Recharts bar charts rendered on teacher dashboard (components/TeacherAnalytics.jsx).
 
+### Phase 4 — Leaderboards, Email Notifications, Forgot-Password, Batch-Scoped Classes (tested 100%, iteration_3.json: 59/59 backend, all UI flows)
+- Leaderboards: GET /api/tests/{id}/leaderboard (rank by score desc/time asc, my_rank + my_percentile). /app/tests/:id/leaderboard page with podium top-3, ranked table (own row highlighted). Links from attempted test cards + scorecard.
+- Email + in-app notifications: Resend integrated (notify.py: send_email + email_template + notify()). RESEND API KEY set in backend/.env — ACCOUNT IN TESTING MODE: delivers only to account owner (vinod.pungle@gmail.com) until domain verified at resend.com/domains; failures caught + logged gracefully. In-app: db.notifications, GET /api/notifications + read-all, NotificationsBell (unread badge, panel, 30s poll) in portal. Triggers: enrollment (student email + teacher in-app), payment success, assignment graded (email), announcement posted, live class scheduled (scoped).
+- Forgot-password: POST /api/auth/forgot-password (token in password_reset_tokens, TTL 1h, reset link emailed + logged), POST /api/auth/reset-password (single-use, expiry checked). Pages /forgot-password + /reset-password?token=; link on login form.
+- Batch-scoped live classes: live_classes optional course_id/batch_id (names resolved); teacher form has course + batch selects; student visibility filter (global OR enrolled course + matching/global batch) applied to /api/live-classes AND student dashboard upcoming; scope badges in UI; scoped students notified on scheduling.
+
 ## Architecture
-- /app/backend: server.py (app + startup indexes/seed), database.py, auth_utils.py, seed.py, routers/{auth,courses,tests,live_classes,assignments,announcements,dashboard,payments,batches,files,certificates}.py, tests/{backend_test.py,test_new_features.py}, uploads/ (file storage)
-- /app/frontend/src: App.js (routes incl /certificate/:courseId, /app/tests/:id/review), lib/api.js (uploadFile/fileUrl helpers), context/AuthContext.jsx, components/{PortalLayout,EnrollModal,TeacherAnalytics}.jsx, pages/{Landing,AuthPage,Dashboard,Courses,CourseDetail,LiveClasses,Tests,TakeTest,TestBuilder,TestResults,TestReview,Certificate,Assignments,Announcements}.jsx
+- /app/backend: server.py (app + startup indexes/seed), database.py, auth_utils.py, seed.py, notify.py (Resend email + in-app notify), routers/{auth,courses,tests,live_classes,assignments,announcements,dashboard,payments,batches,files,certificates,notifications}.py, tests/{backend_test.py,test_new_features.py,test_iteration3.py}, uploads/ (file storage)
+- /app/frontend/src: App.js (routes incl /certificate/:courseId, /app/tests/:id/{review,leaderboard}, /forgot-password, /reset-password), lib/api.js (uploadFile/fileUrl helpers), context/AuthContext.jsx, components/{PortalLayout,EnrollModal,TeacherAnalytics,NotificationsBell}.jsx, pages/{Landing,AuthPage,ForgotPassword,ResetPassword,Dashboard,Courses,CourseDetail,LiveClasses,Tests,TakeTest,TestBuilder,TestResults,TestReview,Leaderboard,Certificate,Assignments,Announcements}.jsx
 
 ## Key API Endpoints (all /api)
 - /auth/{register,login,logout,me}
@@ -44,10 +50,12 @@ Create a website with Edmingle LMS features for an educational academy providing
 - /courses/{id}/batches (GET/POST), /batches/{id} (DELETE), /batches/{id}/students
 - /files/upload (POST multipart), /files/{id} (GET)
 - /courses/{id}/certificate, /student/certificates, /tests/{id}/review, /dashboard/teacher/analytics
+- /tests/{id}/leaderboard, /notifications (GET + read-all), /auth/{forgot-password,reset-password}
 
 ## Backlog / Roadmap
 - P0: Real Stripe/Razorpay gateway integration once user provides keys (wire into payments.py confirm + webhooks; UI already built)
-- P2: Student leaderboards, email notifications, forgot-password flow, batch-scoped live classes/announcements
+- P0: Resend domain verification (user must verify domain at resend.com/domains, then change SENDER_EMAIL) so emails deliver to all users
+- P2: Batch-scoped announcements, notification pagination, background email queue (notify() uses fire-and-forget create_task)
 - P3 (SaaS): multi-tenant academies (white-label), admin panel, live class recordings, Zoom integration, mobile PWA
 
 ## Notes
