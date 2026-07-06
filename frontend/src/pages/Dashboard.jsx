@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { BookOpen, FileQuestion, BarChart3, ClipboardList, Users, Radio, Plus } from "lucide-react";
+import { TeacherAnalytics } from "@/components/TeacherAnalytics";
 import dayjs from "dayjs";
 
 function StatCard({ icon: Icon, label, value, testid }) {
@@ -107,6 +108,7 @@ export default function Dashboard() {
         <StatCard icon={BarChart3} label="Test attempts" value={data.total_attempts} testid="stat-total-attempts" />
       </div>
       <UpcomingClasses classes={data.upcoming_classes} />
+      <TeacherAnalytics />
     </div>
   );
 }

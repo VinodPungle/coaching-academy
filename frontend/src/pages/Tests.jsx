@@ -59,9 +59,14 @@ export default function TestsPage() {
                   </button>
                 </div>
               ) : t.my_attempt ? (
-                <div className="flex items-center justify-between border border-green-200 bg-green-50 px-4 py-2.5">
-                  <span className="text-sm font-semibold text-green-700">Attempted</span>
-                  <span className="text-sm font-bold text-green-700" data-testid={`test-score-${t.id}`}>{t.my_attempt.score} / {t.my_attempt.total}</span>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between border border-green-200 bg-green-50 px-4 py-2.5">
+                    <span className="text-sm font-semibold text-green-700">Attempted</span>
+                    <span className="text-sm font-bold text-green-700" data-testid={`test-score-${t.id}`}>{t.my_attempt.score} / {t.my_attempt.total}</span>
+                  </div>
+                  <Link to={`/app/tests/${t.id}/review`} data-testid={`review-test-${t.id}`} className="block text-center py-2 text-sm font-semibold border border-zinc-300 hover:bg-zinc-100 transition-colors">
+                    Review answers
+                  </Link>
                 </div>
               ) : (
                 <Link to={`/app/tests/${t.id}/take`} data-testid={`start-test-${t.id}`} className="block text-center py-2.5 text-sm font-semibold bg-blue-700 text-white hover:bg-blue-900 transition-colors">

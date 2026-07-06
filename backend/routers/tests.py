@@ -173,6 +173,18 @@ async def submit_attempt(test_id: str, body: AttemptBody, user: dict = Depends(r
     return doc
 
 
+@router.get("/tests/{test_id}/review")
+async def review_test(test_id: str, user: dict = Depends(require_role("student"))):
+    attempt = await db.test_attempts.find_one({"test_id": test_id, "student_id": user["id"]})
+    if not attempt:
+        raise HTTPException(status_code=403, detail="Attempt the test before reviewing answers")
+    test = await db.tests.find_one({"_id": test_id})
+    if not test:
+        raise HTTPException(status_code=404, detail="Test not found")
+    attempt["id"] = attempt.pop("_id")
+    return {"test": test_out(test), "attempt": attempt}
+
+
 @router.get("/tests/{test_id}/attempts")
 async def test_attempts(test_id: str, user: dict = Depends(require_role("teacher", "admin"))):
     docs = await db.test_attempts.find({"test_id": test_id}).sort("score", -1).to_list(500)

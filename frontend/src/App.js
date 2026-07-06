@@ -14,6 +14,8 @@ import TestsPage from "@/pages/Tests";
 import TakeTest from "@/pages/TakeTest";
 import TestBuilder from "@/pages/TestBuilder";
 import TestResults from "@/pages/TestResults";
+import TestReview from "@/pages/TestReview";
+import Certificate from "@/pages/Certificate";
 import AssignmentsPage from "@/pages/Assignments";
 import AnnouncementsPage from "@/pages/Announcements";
 
@@ -37,6 +39,14 @@ function App() {
           <Route path="/" element={<Landing />} />
           <Route path="/auth" element={<AuthPage />} />
           <Route
+            path="/certificate/:courseId"
+            element={
+              <Protected>
+                <Certificate />
+              </Protected>
+            }
+          />
+          <Route
             path="/app"
             element={
               <Protected>
@@ -53,6 +63,7 @@ function App() {
             <Route path="tests/new" element={<TestBuilder />} />
             <Route path="tests/:id/take" element={<TakeTest />} />
             <Route path="tests/:id/results" element={<TestResults />} />
+            <Route path="tests/:id/review" element={<TestReview />} />
             <Route path="assignments" element={<AssignmentsPage />} />
             <Route path="announcements" element={<AnnouncementsPage />} />
           </Route>

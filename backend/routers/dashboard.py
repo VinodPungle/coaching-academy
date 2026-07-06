@@ -33,6 +33,32 @@ async def student_dashboard(user: dict = Depends(require_role("student"))):
     }
 
 
+@router.get("/dashboard/teacher/analytics")
+async def teacher_analytics(user: dict = Depends(require_role("teacher", "admin"))):
+    courses = await db.courses.find({"teacher_id": user["id"]}).to_list(100)
+    course_stats = []
+    for c in courses:
+        count = await db.enrollments.count_documents({"course_id": c["_id"]})
+        course_stats.append({"title": c["title"], "students": count})
+    tests = await db.tests.find({"teacher_id": user["id"]}).to_list(100)
+    test_stats = []
+    for t in tests:
+        attempts = await db.test_attempts.find({"test_id": t["_id"]}).to_list(1000)
+        pcts = [a["score"] / a["total"] * 100 for a in attempts if a.get("total")]
+        test_stats.append({
+            "title": t["title"],
+            "attempts": len(attempts),
+            "avg_pct": round(sum(pcts) / len(pcts)) if pcts else 0,
+        })
+    assignments = await db.assignments.find({"teacher_id": user["id"]}).to_list(100)
+    assignment_stats = []
+    for a in assignments:
+        subs = await db.submissions.find({"assignment_id": a["_id"]}).to_list(1000)
+        graded = len([s for s in subs if s.get("grade") is not None])
+        assignment_stats.append({"title": a["title"], "submitted": len(subs), "graded": graded, "pending": len(subs) - graded})
+    return {"courses": course_stats, "tests": test_stats, "assignments": assignment_stats}
+
+
 @router.get("/dashboard/teacher")
 async def teacher_dashboard(user: dict = Depends(require_role("teacher", "admin"))):
     now = datetime.now(timezone.utc).isoformat()

@@ -134,7 +134,14 @@ export default function CoursesPage() {
                     <span className="font-semibold text-zinc-950">{course.progress}%</span>
                   </div>
                   <div className="h-1.5 bg-zinc-100"><div className="h-full bg-blue-700" style={{ width: `${course.progress}%` }} /></div>
-                  <Link to={`/app/courses/${course.id}`} data-testid={`continue-course-${course.id}`} className="mt-3 block text-center py-2 text-sm font-semibold bg-blue-700 text-white hover:bg-blue-900 transition-colors">Continue learning</Link>
+                  {course.progress === 100 ? (
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <Link to={`/app/courses/${course.id}`} className="block text-center py-2 text-sm font-semibold border border-zinc-300 hover:bg-zinc-100 transition-colors">Revisit</Link>
+                      <Link to={`/certificate/${course.id}`} data-testid={`view-certificate-${course.id}`} className="block text-center py-2 text-sm font-semibold bg-zinc-950 text-white hover:bg-zinc-800 transition-colors">Certificate</Link>
+                    </div>
+                  ) : (
+                    <Link to={`/app/courses/${course.id}`} data-testid={`continue-course-${course.id}`} className="mt-3 block text-center py-2 text-sm font-semibold bg-blue-700 text-white hover:bg-blue-900 transition-colors">Continue learning</Link>
+                  )}
                 </div>
               ) : enrolledIds.has(course.id) ? (
                 <Link to={`/app/courses/${course.id}`} className="block text-center py-2 text-sm font-semibold border border-zinc-300 hover:bg-zinc-100 transition-colors">Enrolled — View course</Link>

@@ -23,9 +23,14 @@ Create a website with Edmingle LMS features for an educational academy providing
 - Real file uploads: POST /api/files/upload (25MB max, ext whitelist, chunked write to /app/backend/uploads, metadata in db.files), GET /api/files/{id} serves. Teacher uploads lesson notes (auto-fills lesson URL, type=pdf); students attach files to assignment submissions; teacher sees download link in submissions view.
 - Course-linked tests & assignments: optional course selector in TestBuilder and assignment form; students only see items that are unlinked or belong to enrolled courses; course badge shown on cards.
 
+### Phase 3 — Certificates, Test Review, Teacher Analytics (self-tested e2e via curl + UI screenshots)
+- Certificates: GET /api/courses/{id}/certificate issues cert (unique cert_no) only at 100% lesson completion (400 with progress otherwise); GET /api/student/certificates. Printable certificate page at /certificate/:courseId (print CSS, window.print for PDF); "Certificate" buttons appear on My Courses card + course detail at 100%.
+- Test answer review: GET /api/tests/{id}/review (student, requires attempt) returns questions with correct_index + student answers. /app/tests/:id/review page shows verdict per question (+marks/0/Skipped), correct answer green, wrong choice red. Linked from scorecard and attempted test cards.
+- Teacher analytics: GET /api/dashboard/teacher/analytics (enrollments per course, test avg%/attempts, assignment graded vs pending). Recharts bar charts rendered on teacher dashboard (components/TeacherAnalytics.jsx).
+
 ## Architecture
-- /app/backend: server.py (app + startup indexes/seed), database.py, auth_utils.py, seed.py, routers/{auth,courses,tests,live_classes,assignments,announcements,dashboard,payments,batches,files}.py, tests/{backend_test.py,test_new_features.py}, uploads/ (file storage)
-- /app/frontend/src: App.js (routes), lib/api.js (uploadFile/fileUrl helpers), context/AuthContext.jsx, components/{PortalLayout,EnrollModal}.jsx, pages/{Landing,AuthPage,Dashboard,Courses,CourseDetail,LiveClasses,Tests,TakeTest,TestBuilder,TestResults,Assignments,Announcements}.jsx
+- /app/backend: server.py (app + startup indexes/seed), database.py, auth_utils.py, seed.py, routers/{auth,courses,tests,live_classes,assignments,announcements,dashboard,payments,batches,files,certificates}.py, tests/{backend_test.py,test_new_features.py}, uploads/ (file storage)
+- /app/frontend/src: App.js (routes incl /certificate/:courseId, /app/tests/:id/review), lib/api.js (uploadFile/fileUrl helpers), context/AuthContext.jsx, components/{PortalLayout,EnrollModal,TeacherAnalytics}.jsx, pages/{Landing,AuthPage,Dashboard,Courses,CourseDetail,LiveClasses,Tests,TakeTest,TestBuilder,TestResults,TestReview,Certificate,Assignments,Announcements}.jsx
 
 ## Key API Endpoints (all /api)
 - /auth/{register,login,logout,me}
@@ -38,10 +43,10 @@ Create a website with Edmingle LMS features for an educational academy providing
 - /payments/{config,checkout}, /payments/{id}/confirm, /student/payments
 - /courses/{id}/batches (GET/POST), /batches/{id} (DELETE), /batches/{id}/students
 - /files/upload (POST multipart), /files/{id} (GET)
+- /courses/{id}/certificate, /student/certificates, /tests/{id}/review, /dashboard/teacher/analytics
 
 ## Backlog / Roadmap
 - P0: Real Stripe/Razorpay gateway integration once user provides keys (wire into payments.py confirm + webhooks; UI already built)
-- P1: Certificates on course completion, test question review after attempt, teacher analytics charts (recharts)
 - P2: Student leaderboards, email notifications, forgot-password flow, batch-scoped live classes/announcements
 - P3 (SaaS): multi-tenant academies (white-label), admin panel, live class recordings, Zoom integration, mobile PWA
 

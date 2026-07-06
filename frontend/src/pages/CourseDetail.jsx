@@ -128,6 +128,11 @@ export default function CourseDetail() {
                 {course.my_batch.schedule && <span className="block mt-0.5">{course.my_batch.schedule}</span>}
               </p>
             )}
+            {progress === 100 && (
+              <Link to={`/certificate/${course.id}`} data-testid="course-certificate-link" className="mt-3 block text-center py-2 text-xs font-semibold bg-zinc-950 text-white hover:bg-zinc-800 transition-colors">
+                View certificate
+              </Link>
+            )}
           </div>
         )}
       </div>
