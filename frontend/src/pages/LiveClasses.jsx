@@ -1,0 +1,136 @@
+import { useEffect, useState } from "react";
+import { useAuth } from "@/context/AuthContext";
+import { api, formatApiError } from "@/lib/api";
+import { toast } from "sonner";
+import { Radio, Plus, Trash2, ExternalLink, Clock } from "lucide-react";
+import dayjs from "dayjs";
+
+export default function LiveClasses() {
+  const { user } = useAuth();
+  const [classes, setClasses] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ title: "", subject: "Physics", description: "", start_time: "", duration_min: 60, meeting_link: "" });
+
+  const isTeacher = user.role !== "student";
+  const load = () => api.get("/live-classes").then((r) => setClasses(r.data));
+  useEffect(() => { load(); }, []);
+
+  const create = async (e) => {
+    e.preventDefault();
+    try {
+      await api.post("/live-classes", {
+        ...form,
+        duration_min: Number(form.duration_min),
+        start_time: new Date(form.start_time).toISOString(),
+      });
+      toast.success("Live class scheduled");
+      setShowForm(false);
+      setForm({ title: "", subject: "Physics", description: "", start_time: "", duration_min: 60, meeting_link: "" });
+      load();
+    } catch (err) {
+      toast.error(formatApiError(err));
+    }
+  };
+
+  const remove = async (id) => {
+    await api.delete(`/live-classes/${id}`);
+    toast.success("Class deleted");
+    load();
+  };
+
+  const now = new Date().toISOString();
+  const upcoming = classes.filter((c) => c.start_time >= now);
+  const past = classes.filter((c) => c.start_time < now);
+
+  const ClassRow = ({ c, isPast }) => (
+    <div className="border border-zinc-200 p-5 flex flex-col sm:flex-row sm:items-center gap-4 hover:border-zinc-300 transition-colors" data-testid={`live-class-${c.id}`}>
+      <div className={`shrink-0 w-12 h-12 flex items-center justify-center ${isPast ? "bg-zinc-100 text-zinc-400" : "bg-red-50 text-red-600"}`}>
+        <Radio className="w-5 h-5" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs uppercase tracking-[0.15em] font-semibold text-blue-700">{c.subject}</span>
+          {!isPast && <span className="text-[10px] uppercase tracking-[0.15em] font-bold bg-red-600 text-white px-1.5 py-0.5">Upcoming</span>}
+        </div>
+        <h3 className="font-heading font-bold mt-0.5">{c.title}</h3>
+        <p className="text-xs text-zinc-500 mt-1">{c.description}</p>
+        <div className="flex items-center gap-4 text-xs text-zinc-500 mt-2">
+          <span className="inline-flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{dayjs(c.start_time).format("ddd, D MMM YYYY · h:mm A")}</span>
+          <span>{c.duration_min} min</span>
+          <span>by {c.teacher_name}</span>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        {!isPast && c.meeting_link && (
+          <a href={c.meeting_link} target="_blank" rel="noreferrer" data-testid={`join-class-${c.id}`} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-blue-700 text-white hover:bg-blue-900 transition-colors">
+            Join class <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+        )}
+        {isTeacher && (
+          <button onClick={() => remove(c.id)} data-testid={`delete-class-${c.id}`} className="p-2 border border-zinc-300 text-zinc-500 hover:text-red-600 hover:border-red-300 transition-colors">
+            <Trash2 className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-end justify-between flex-wrap gap-4">
+        <h1 className="font-heading text-3xl font-black tracking-tight">Live Classes</h1>
+        {isTeacher && (
+          <button onClick={() => setShowForm(!showForm)} data-testid="schedule-class-button" className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-blue-700 text-white hover:bg-blue-900 transition-colors">
+            <Plus className="w-4 h-4" /> Schedule class
+          </button>
+        )}
+      </div>
+
+      {isTeacher && showForm && (
+        <form onSubmit={create} className="border border-zinc-200 p-6 grid sm:grid-cols-2 gap-4" data-testid="schedule-class-form">
+          <div className="sm:col-span-2">
+            <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Title</label>
+            <input data-testid="class-title-input" required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="mt-1 w-full border border-zinc-300 px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Subject</label>
+            <select value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} className="mt-1 w-full border border-zinc-300 px-3 py-2 text-sm bg-white">
+              {["Physics", "Chemistry", "Mathematics", "Biotechnology", "Economics", "Geology"].map((s) => <option key={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Start time</label>
+            <input data-testid="class-start-input" type="datetime-local" required value={form.start_time} onChange={(e) => setForm({ ...form, start_time: e.target.value })} className="mt-1 w-full border border-zinc-300 px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Duration (min)</label>
+            <input type="number" value={form.duration_min} onChange={(e) => setForm({ ...form, duration_min: e.target.value })} className="mt-1 w-full border border-zinc-300 px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Meeting link</label>
+            <input data-testid="class-link-input" value={form.meeting_link} onChange={(e) => setForm({ ...form, meeting_link: e.target.value })} placeholder="https://meet.google.com/…" className="mt-1 w-full border border-zinc-300 px-3 py-2 text-sm" />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Description</label>
+            <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} className="mt-1 w-full border border-zinc-300 px-3 py-2 text-sm" />
+          </div>
+          <div className="sm:col-span-2 flex gap-2">
+            <button data-testid="class-submit-button" className="px-5 py-2 text-sm font-semibold bg-blue-700 text-white hover:bg-blue-900">Schedule</button>
+            <button type="button" onClick={() => setShowForm(false)} className="px-5 py-2 text-sm font-semibold border border-zinc-300 hover:bg-zinc-100">Cancel</button>
+          </div>
+        </form>
+      )}
+
+      <div className="space-y-3">
+        {upcoming.length === 0 && <p className="text-sm text-zinc-500" data-testid="no-upcoming-classes">No upcoming live classes.</p>}
+        {upcoming.map((c) => <ClassRow key={c.id} c={c} isPast={false} />)}
+      </div>
+      {past.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-xs uppercase tracking-[0.2em] font-semibold text-zinc-500 pt-4">Past classes</h2>
+          {past.map((c) => <ClassRow key={c.id} c={c} isPast />)}
+        </div>
+      )}
+    </div>
+  );
+}
