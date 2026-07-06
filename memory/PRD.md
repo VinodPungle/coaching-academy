@@ -47,6 +47,10 @@ Create a website with Edmingle LMS features for an educational academy providing
 - Three downloadable, printable HTML docs served from frontend/public/docs/ (linked in landing footer): /docs/user-manual.html (student/teacher/admin operations + FAQ), /docs/design-architecture.html (stack, design system, data model, API surface, key flows, integrations), /docs/developer-guide.html (repo structure, env vars, conventions, integration activation steps, how-tos). Each has a Print/Save-as-PDF button.
 - Confirmed to user: recorded video lectures = lessons of type "video" (teacher adds URL), students view + mark complete, progress % tracked per student, teacher sees per-student completion, certificate at 100%.
 
+### Phase 8 — In-App Video Player (June 2026)
+- components/VideoPlayerModal.jsx: react-player@2.16.0 lightbox (16:9, dark overlay, autoplay, controls) — supports YouTube/Vimeo/direct files. Video lessons in CourseDetail open the player in-app (PDFs still open in new tab).
+- Auto-mark-complete: onProgress played>=0.9 or onEnded → POST lessons/{id}/complete (once, enrolled students only); manual "Mark complete" button in player header; teacher/non-enrolled see preview mode note. Verified via screenshot (player renders, completion state works).
+
 ## Architecture
 - /app/backend: server.py (app + startup indexes/seed), database.py, auth_utils.py, seed.py, notify.py (Resend email + in-app notify), zoom_service.py, routers/{auth,courses,tests,live_classes,assignments,announcements,dashboard,payments,batches,files,certificates,notifications,admin}.py, tests/{backend_test.py,test_new_features.py,test_iteration3.py}, uploads/ (file storage)
 - /app/frontend/src: App.js (routes incl /certificate/:courseId, /app/tests/:id/{review,leaderboard}, /forgot-password, /reset-password), lib/api.js (uploadFile/fileUrl helpers), context/AuthContext.jsx, components/{PortalLayout,EnrollModal,TeacherAnalytics,NotificationsBell}.jsx, pages/{Landing,AuthPage,ForgotPassword,ResetPassword,Dashboard,Courses,CourseDetail,LiveClasses,Tests,TakeTest,TestBuilder,TestResults,TestReview,Leaderboard,Certificate,Assignments,Announcements}.jsx

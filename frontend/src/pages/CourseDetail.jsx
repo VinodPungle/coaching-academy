@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { api, formatApiError, uploadFile, fileUrl } from "@/lib/api";
 import EnrollModal from "@/components/EnrollModal";
+import VideoPlayerModal from "@/components/VideoPlayerModal";
 import { toast } from "sonner";
 import { PlayCircle, FileText, CheckCircle2, Circle, Plus, Users, ArrowLeft, Upload, Trash2 } from "lucide-react";
 
@@ -14,6 +15,7 @@ export default function CourseDetail() {
   const [sectionTitle, setSectionTitle] = useState("");
   const [lessonForms, setLessonForms] = useState({});
   const [showEnroll, setShowEnroll] = useState(false);
+  const [playerLesson, setPlayerLesson] = useState(null);
   const [batches, setBatches] = useState([]);
   const [batchForm, setBatchForm] = useState({ name: "", start_date: "", schedule: "", capacity: "" });
   const [uploadingFor, setUploadingFor] = useState(null);
@@ -166,7 +168,17 @@ export default function CourseDetail() {
                 <div key={lesson.id} className="px-5 py-3 border-b border-zinc-100 last:border-0 flex items-center gap-3" data-testid={`lesson-${lesson.id}`}>
                   {lesson.type === "video" ? <PlayCircle className="w-4 h-4 text-blue-700 shrink-0" /> : <FileText className="w-4 h-4 text-red-600 shrink-0" />}
                   <div className="flex-1 min-w-0">
-                    <a href={fileUrl(lesson.url) || "#"} target="_blank" rel="noreferrer" className="text-sm font-medium hover:text-blue-700 hover:underline">{lesson.title}</a>
+                    {lesson.type === "video" ? (
+                      <button
+                        onClick={() => setPlayerLesson(lesson)}
+                        data-testid={`play-lesson-${lesson.id}`}
+                        className="text-sm font-medium text-left hover:text-blue-700 hover:underline"
+                      >
+                        {lesson.title}
+                      </button>
+                    ) : (
+                      <a href={fileUrl(lesson.url) || "#"} target="_blank" rel="noreferrer" className="text-sm font-medium hover:text-blue-700 hover:underline">{lesson.title}</a>
+                    )}
                     <span className="text-xs text-zinc-400 ml-2">{lesson.duration}</span>
                   </div>
                   {!isOwner && course.enrolled && (
@@ -292,6 +304,19 @@ export default function CourseDetail() {
           course={course}
           onClose={() => setShowEnroll(false)}
           onSuccess={() => { setShowEnroll(false); load(); }}
+        />
+      )}
+      {playerLesson && (
+        <VideoPlayerModal
+          lesson={playerLesson}
+          completed={course.completed_lessons?.includes(playerLesson.id)}
+          canComplete={!isOwner && course.enrolled}
+          onComplete={async () => {
+            await api.post(`/courses/${id}/lessons/${playerLesson.id}/complete`);
+            toast.success("Lesson marked complete");
+            load();
+          }}
+          onClose={() => setPlayerLesson(null)}
         />
       )}
     </div>
