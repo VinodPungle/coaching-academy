@@ -3,12 +3,12 @@ import { GraduationCap, Radio, FileQuestion, BarChart3, BookOpen, Award, ArrowRi
 import { ACADEMY_NAME } from "@/lib/config";
 
 const FEATURES = [
-  { icon: Radio, title: "Live Classes", desc: "Interactive live sessions with IIT alumni faculty, auto-recorded for revision." },
-  { icon: BookOpen, title: "Structured Courses", desc: "Video lectures, PDF notes and practice sheets organised chapter-wise for every JAM paper." },
-  { icon: FileQuestion, title: "Mock Test Series", desc: "Timed, JAM-pattern mock tests with instant auto-evaluation and detailed scorecards." },
+  { icon: Radio, title: "Live Classes", desc: "Interactive live sessions with experienced faculty, auto-recorded for revision." },
+  { icon: BookOpen, title: "Structured Courses", desc: "Video lectures, PDF notes and practice sheets organised chapter-wise for every exam." },
+  { icon: FileQuestion, title: "Mock Test Series", desc: "Timed, exam-pattern mock tests with instant auto-evaluation and detailed scorecards." },
   { icon: BarChart3, title: "Progress Analytics", desc: "Track lesson completion, test percentile and weak areas in real time." },
   { icon: Users, title: "Assignments & Feedback", desc: "Weekly assignments graded personally by faculty with written feedback." },
-  { icon: Award, title: "Result Oriented", desc: "A curriculum reverse-engineered from 10 years of JAM papers." },
+  { icon: Award, title: "Result Oriented", desc: "Curriculum reverse-engineered from years of past papers across entrance exams." },
 ];
 
 const SUBJECTS = ["Physics", "Chemistry", "Mathematics", "Biotechnology", "Economics", "Geology"];
@@ -35,12 +35,12 @@ export default function Landing() {
 
       <section className="max-w-6xl mx-auto px-4 md:px-8 py-16 md:py-24 grid md:grid-cols-2 gap-12 items-center">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] font-semibold text-red-600 mb-4">IIT-JAM 2027 Batches Open</p>
-          <h1 className="font-heading text-4xl sm:text-5xl lg:text-6xl tracking-tighter font-black leading-[1.05]">
-            Crack IIT-JAM with the faculty who cracked it first.
+          <p className="text-xs uppercase tracking-[0.2em] font-semibold text-red-600 mb-4">New Batches Open</p>
+          <h1 className="font-heading text-4xl sm:text-5xl lg:text-6xl tracking-tighter font-black leading-[1.05]" data-testid="hero-heading">
+            Crack Exams with the most experienced faculties.
           </h1>
-          <p className="mt-6 text-base md:text-lg text-zinc-500 leading-relaxed max-w-lg">
-            Live classes, structured courses, JAM-pattern mock tests and personal mentorship — everything you need to reach IIT, in one portal.
+          <p className="mt-6 text-base md:text-lg text-zinc-500 leading-relaxed max-w-lg" data-testid="hero-subheading">
+            Live classes, structured courses, mock tests and personal mentorship — everything you need to reach crack any entrance exams including IIT.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link to="/auth?mode=register" data-testid="hero-cta-student" className="inline-flex items-center gap-2 px-6 py-3 bg-blue-700 text-white font-semibold hover:bg-blue-900 transition-colors">
@@ -51,7 +51,7 @@ export default function Landing() {
             </Link>
           </div>
           <div className="mt-10 flex gap-8">
-            {[["1,200+", "Students mentored"], ["94%", "Selection rate"], ["6", "JAM papers covered"]].map(([n, l]) => (
+            {[["1,200+", "Students mentored"], ["94%", "Selection rate"], ["Multi", "Exams covered"]].map(([n, l]) => (
               <div key={l}>
                 <div className="font-heading text-2xl font-black">{n}</div>
                 <div className="text-xs uppercase tracking-[0.15em] text-zinc-500 mt-1">{l}</div>
@@ -82,7 +82,7 @@ export default function Landing() {
 
       <section className="max-w-6xl mx-auto px-4 md:px-8 py-16 md:py-24">
         <h2 className="font-heading text-2xl sm:text-3xl lg:text-4xl tracking-tight font-bold max-w-xl">
-          Everything a serious JAM aspirant needs. Nothing they don't.
+          Everything a serious aspirant needs. Nothing they don't.
         </h2>
         <div className="mt-12 grid sm:grid-cols-2 lg:grid-cols-3 gap-px bg-zinc-200 border border-zinc-200">
           {FEATURES.map(({ icon: Icon, title, desc }) => (
@@ -98,8 +98,8 @@ export default function Landing() {
       <section className="bg-zinc-950 text-white">
         <div className="max-w-6xl mx-auto px-4 md:px-8 py-16 md:py-20 flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
           <div>
-            <h2 className="font-heading text-2xl sm:text-3xl lg:text-4xl tracking-tight font-bold">Your IIT seat is one decision away.</h2>
-            <p className="text-zinc-400 mt-3">Join the JAM 2027 batch today. First course module is free.</p>
+            <h2 className="font-heading text-2xl sm:text-3xl lg:text-4xl tracking-tight font-bold" data-testid="cta-heading">Your entrance exam success is one decision away.</h2>
+            <p className="text-zinc-400 mt-3">Join the new batch today. First course module is free.</p>
           </div>
           <Link to="/auth?mode=register" data-testid="footer-cta" className="shrink-0 inline-flex items-center gap-2 px-6 py-3 bg-white text-zinc-950 font-semibold hover:bg-zinc-200 transition-colors">
             Create free account <ArrowRight className="w-4 h-4" />
@@ -115,7 +115,7 @@ export default function Landing() {
             <a href="/docs/design-architecture.html" target="_blank" rel="noreferrer" data-testid="footer-architecture-doc" className="hover:text-zinc-950 hover:underline">Architecture</a>
             <a href="/docs/developer-guide.html" target="_blank" rel="noreferrer" data-testid="footer-developer-guide" className="hover:text-zinc-950 hover:underline">Developer Guide</a>
           </div>
-          <span>Built for IIT-JAM aspirants</span>
+          <span>Built for entrance exam aspirants</span>
         </div>
       </footer>
     </div>

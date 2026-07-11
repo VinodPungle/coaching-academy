@@ -47,7 +47,7 @@ export default function AuthPage() {
               {mode === "login" ? "Welcome back" : "Create your account"}
             </h1>
             <p className="text-sm text-zinc-500 mt-2">
-              {mode === "login" ? "Log in to continue your preparation." : "Start your IIT-JAM journey today."}
+              {mode === "login" ? "Log in to continue your preparation." : "Start your journey today."}
             </p>
 
             <form onSubmit={submit} className="mt-8 space-y-4">
@@ -149,8 +149,8 @@ export default function AuthPage() {
             </p>
             <div className="mt-8 border border-zinc-200 bg-zinc-50 p-4 text-xs text-zinc-500 space-y-1">
               <p className="font-semibold uppercase tracking-[0.15em]">Demo accounts</p>
-              <p>Student: student@jamacademy.com / Student@123</p>
-              <p>Teacher: teacher@jamacademy.com / Teacher@123</p>
+              <p>Student: student@rgpacademy.com / Student@123</p>
+              <p>Teacher: teacher@rgpacademy.com / Teacher@123</p>
             </div>
           </div>
         </div>
@@ -164,9 +164,9 @@ export default function AuthPage() {
         <div className="absolute inset-0 bg-zinc-950/50" />
         <div className="absolute bottom-12 left-12 right-12 text-white">
           <p className="font-heading text-2xl font-bold leading-snug">
-            "The mock test series felt exactly like the real JAM paper. I walked into the exam hall with zero surprises."
+            "The mock tests felt exactly like the real exam. I walked in with zero surprises."
           </p>
-          <p className="mt-3 text-sm text-zinc-300">— AIR 14, IIT-JAM Physics</p>
+          <p className="mt-3 text-sm text-zinc-300">— Top ranker, Rohini's Academy</p>
         </div>
       </div>
     </div>

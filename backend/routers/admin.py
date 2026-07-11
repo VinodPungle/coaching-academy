@@ -103,3 +103,176 @@ async def admin_payments(user: dict = Depends(require_role("admin"))):
         d["id"] = d.pop("_id")
     total = sum(d["amount"] for d in docs if d["status"] == "paid")
     return {"payments": docs, "total_revenue": total}
+
+
+@router.get("/teachers")
+async def admin_teachers(user: dict = Depends(require_role("admin"))):
+    """Per-teacher breakdown: courses, students, tests, live classes, assignments (upcoming/past)."""
+    from datetime import datetime, timezone
+    now_iso = datetime.now(timezone.utc).isoformat()
+    teachers = await db.users.find({"role": "teacher"}, {"password_hash": 0}).sort("created_at", -1).to_list(500)
+    if not teachers:
+        return []
+    tids = [t["_id"] for t in teachers]
+
+    # aggregate counts per teacher
+    def agg_count(pipeline):
+        return db.courses.aggregate(pipeline).to_list(1000)
+
+    course_counts = {r["_id"]: r["n"] for r in await db.courses.aggregate([
+        {"$match": {"teacher_id": {"$in": tids}}},
+        {"$group": {"_id": "$teacher_id", "n": {"$sum": 1}}},
+    ]).to_list(1000)}
+    test_counts = {r["_id"]: r["n"] for r in await db.tests.aggregate([
+        {"$match": {"teacher_id": {"$in": tids}}},
+        {"$group": {"_id": "$teacher_id", "n": {"$sum": 1}}},
+    ]).to_list(1000)}
+    assignment_counts = {r["_id"]: r["n"] for r in await db.assignments.aggregate([
+        {"$match": {"teacher_id": {"$in": tids}}},
+        {"$group": {"_id": "$teacher_id", "n": {"$sum": 1}}},
+    ]).to_list(1000)}
+    upcoming_lc = {r["_id"]: r["n"] for r in await db.live_classes.aggregate([
+        {"$match": {"teacher_id": {"$in": tids}, "start_time": {"$gte": now_iso}}},
+        {"$group": {"_id": "$teacher_id", "n": {"$sum": 1}}},
+    ]).to_list(1000)}
+    past_lc = {r["_id"]: r["n"] for r in await db.live_classes.aggregate([
+        {"$match": {"teacher_id": {"$in": tids}, "start_time": {"$lt": now_iso}}},
+        {"$group": {"_id": "$teacher_id", "n": {"$sum": 1}}},
+    ]).to_list(1000)}
+    # students enrolled per teacher (via their courses)
+    courses_by_teacher = {}
+    async for c in db.courses.find({"teacher_id": {"$in": tids}}, {"_id": 1, "teacher_id": 1}):
+        courses_by_teacher.setdefault(c["teacher_id"], []).append(c["_id"])
+    student_counts = {}
+    for tid, cids in courses_by_teacher.items():
+        student_counts[tid] = await db.enrollments.count_documents({"course_id": {"$in": cids}})
+
+    result = []
+    for t in teachers:
+        tid = t["_id"]
+        result.append({
+            "id": tid,
+            "name": t["name"],
+            "email": t["email"],
+            "created_at": t.get("created_at"),
+            "courses": course_counts.get(tid, 0),
+            "students": student_counts.get(tid, 0),
+            "tests": test_counts.get(tid, 0),
+            "assignments": assignment_counts.get(tid, 0),
+            "upcoming_classes": upcoming_lc.get(tid, 0),
+            "past_classes": past_lc.get(tid, 0),
+        })
+    return result
+
+
+@router.get("/teachers/{teacher_id}/detail")
+async def admin_teacher_detail(teacher_id: str, user: dict = Depends(require_role("admin"))):
+    teacher = await db.users.find_one({"_id": teacher_id, "role": "teacher"}, {"password_hash": 0})
+    if not teacher:
+        raise HTTPException(status_code=404, detail="Teacher not found")
+    teacher["id"] = teacher.pop("_id")
+    courses = await db.courses.find({"teacher_id": teacher_id}).to_list(200)
+    course_ids = [c["_id"] for c in courses]
+    enroll_counts = {r["_id"]: r["n"] for r in await db.enrollments.aggregate([
+        {"$match": {"course_id": {"$in": course_ids}}},
+        {"$group": {"_id": "$course_id", "n": {"$sum": 1}}},
+    ]).to_list(500)}
+    course_out = []
+    for c in courses:
+        course_out.append({
+            "id": c["_id"], "title": c["title"], "subject": c.get("subject"),
+            "students": enroll_counts.get(c["_id"], 0),
+            "published": c.get("published", True),
+        })
+    tests = await db.tests.find({"teacher_id": teacher_id}).to_list(200)
+    test_ids = [t["_id"] for t in tests]
+    attempt_counts = {r["_id"]: r["n"] for r in await db.test_attempts.aggregate([
+        {"$match": {"test_id": {"$in": test_ids}}},
+        {"$group": {"_id": "$test_id", "n": {"$sum": 1}}},
+    ]).to_list(500)}
+    tests_out = [{
+        "id": t["_id"], "title": t["title"], "subject": t.get("subject"),
+        "course_name": t.get("course_name"), "attempts": attempt_counts.get(t["_id"], 0),
+    } for t in tests]
+    classes = await db.live_classes.find({"teacher_id": teacher_id}).sort("start_time", -1).to_list(200)
+    classes_out = [{
+        "id": c["_id"], "title": c["title"], "subject": c.get("subject"),
+        "start_time": c.get("start_time"), "course_name": c.get("course_name"),
+        "batch_name": c.get("batch_name"),
+    } for c in classes]
+    assignments = await db.assignments.find({"teacher_id": teacher_id}).sort("created_at", -1).to_list(200)
+    assignments_out = [{
+        "id": a["_id"], "title": a["title"], "subject": a.get("subject"),
+        "course_name": a.get("course_name"), "due_date": a.get("due_date"),
+    } for a in assignments]
+    return {
+        "teacher": teacher,
+        "courses": course_out,
+        "tests": tests_out,
+        "live_classes": classes_out,
+        "assignments": assignments_out,
+    }
+
+
+@router.get("/top-performers")
+async def admin_top_performers(limit: int = 5, user: dict = Depends(require_role("admin"))):
+    """Top performers per batch and per course, ranked by average test %."""
+    # Compute per-student stats first, then bucket by course/batch
+    pipeline = [
+        {"$match": {"total": {"$gt": 0}}},
+        {"$group": {
+            "_id": "$student_id",
+            "avg_pct": {"$avg": {"$multiply": [{"$divide": ["$score", "$total"]}, 100]}},
+            "attempts": {"$sum": 1},
+            "student_name": {"$first": "$student_name"},
+        }},
+    ]
+    stats = {r["_id"]: r for r in await db.test_attempts.aggregate(pipeline).to_list(5000)}
+
+    # Per course (from enrollments)
+    courses = await db.courses.find({}, {"_id": 1, "title": 1}).to_list(500)
+    course_top = []
+    for c in courses:
+        enrolls = await db.enrollments.find({"course_id": c["_id"]}).to_list(2000)
+        rows = []
+        for e in enrolls:
+            s = stats.get(e["student_id"])
+            if s:
+                rows.append({
+                    "student_id": e["student_id"],
+                    "student_name": s["student_name"],
+                    "avg_pct": round(s["avg_pct"]),
+                    "attempts": s["attempts"],
+                })
+        rows.sort(key=lambda r: (-r["avg_pct"], -r["attempts"]))
+        course_top.append({
+            "course_id": c["_id"],
+            "course_title": c["title"],
+            "top": rows[:limit],
+        })
+
+    # Per batch
+    batches = await db.batches.find({}).to_list(500)
+    course_titles = {c["_id"]: c["title"] for c in courses}
+    batch_top = []
+    for b in batches:
+        enrolls = await db.enrollments.find({"batch_id": b["_id"]}).to_list(2000)
+        rows = []
+        for e in enrolls:
+            s = stats.get(e["student_id"])
+            if s:
+                rows.append({
+                    "student_id": e["student_id"],
+                    "student_name": s["student_name"],
+                    "avg_pct": round(s["avg_pct"]),
+                    "attempts": s["attempts"],
+                })
+        rows.sort(key=lambda r: (-r["avg_pct"], -r["attempts"]))
+        batch_top.append({
+            "batch_id": b["_id"],
+            "batch_name": b["name"],
+            "course_title": course_titles.get(b.get("course_id"), ""),
+            "top": rows[:limit],
+        })
+
+    return {"per_course": course_top, "per_batch": batch_top}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import { api } from "@/lib/api";
+import { api, formatApiError } from "@/lib/api";
 import { toast } from "sonner";
 import { FileQuestion, Plus, Trash2, Clock } from "lucide-react";
 
@@ -14,9 +14,13 @@ export default function TestsPage() {
   useEffect(() => { load(); }, []);
 
   const remove = async (id) => {
-    await api.delete(`/tests/${id}`);
-    toast.success("Test deleted");
-    load();
+    try {
+      await api.delete(`/tests/${id}`);
+      toast.success("Test deleted");
+      load();
+    } catch (err) {
+      toast.error(formatApiError(err));
+    }
   };
 
   return (
@@ -37,7 +41,11 @@ export default function TestsPage() {
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs uppercase tracking-[0.15em] font-semibold text-blue-700">{t.subject}</span>
-                  {t.course_name && <span className="text-[10px] uppercase tracking-[0.1em] font-bold bg-zinc-950 text-white px-1.5 py-0.5" data-testid={`test-course-badge-${t.id}`}>{t.course_name}</span>}
+                  {t.course_name ? (
+                    <span className="text-[10px] uppercase tracking-[0.1em] font-bold bg-zinc-950 text-white px-1.5 py-0.5" data-testid={`test-course-badge-${t.id}`}>{t.course_name}</span>
+                  ) : (
+                    <span className="text-[10px] uppercase tracking-[0.1em] font-bold bg-blue-50 text-blue-700 border border-blue-200 px-1.5 py-0.5" data-testid={`test-all-badge-${t.id}`}>For all students</span>
+                  )}
                 </div>
                 <h3 className="font-heading font-bold mt-1">{t.title}</h3>
               </div>
@@ -54,9 +62,14 @@ export default function TestsPage() {
                   <Link to={`/app/tests/${t.id}/results`} data-testid={`view-results-${t.id}`} className="text-sm font-semibold text-blue-700 hover:underline">
                     {t.attempt_count} attempts — View results →
                   </Link>
-                  <button onClick={() => remove(t.id)} data-testid={`delete-test-${t.id}`} className="p-2 border border-zinc-300 text-zinc-500 hover:text-red-600 hover:border-red-300 transition-colors">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex gap-1">
+                    <Link to={`/app/tests/${t.id}/edit`} data-testid={`edit-test-${t.id}`} className="px-3 py-2 text-xs font-semibold border border-zinc-300 hover:bg-zinc-100 transition-colors">
+                      Modify
+                    </Link>
+                    <button onClick={() => remove(t.id)} data-testid={`delete-test-${t.id}`} className="p-2 border border-zinc-300 text-zinc-500 hover:text-red-600 hover:border-red-300 transition-colors">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               ) : t.my_attempt ? (
                 <div className="space-y-2">

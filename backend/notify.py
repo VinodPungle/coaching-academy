@@ -9,7 +9,7 @@ from database import db
 
 logger = logging.getLogger(__name__)
 
-ACADEMY_NAME = os.environ.get("ACADEMY_NAME", "Rohini's JAM Academy")
+ACADEMY_NAME = os.environ.get("ACADEMY_NAME", "Rohini's Academy")
 
 
 async def send_email(to: str, subject: str, html: str):
@@ -52,7 +52,7 @@ def email_template(title: str, body: str, cta_label: str = "", cta_url: str = ""
 {button}
 </table>
 </td></tr>
-<tr><td style="padding:16px 32px;border-top:1px solid #e4e4e7;font-family:Arial,sans-serif;font-size:11px;color:#a1a1aa">{ACADEMY_NAME} · IIT-JAM Coaching · This is an automated message.</td></tr>
+<tr><td style="padding:16px 32px;border-top:1px solid #e4e4e7;font-family:Arial,sans-serif;font-size:11px;color:#a1a1aa">{ACADEMY_NAME} · Entrance Exam Coaching · This is an automated message.</td></tr>
 </table>
 </td></tr>
 </table>"""

@@ -59,6 +59,44 @@ async def startup():
     await db.test_attempts.create_index([("test_id", 1), ("student_id", 1)], unique=True)
     await db.password_reset_tokens.create_index("expires_at", expireAfterSeconds=0)
     await db.notifications.create_index([("user_id", 1), ("created_at", -1)])
+    # One-time migration: rename @jamacademy.com emails to @rgpacademy.com (passwords unchanged)
+    async for u in db.users.find({"email": {"$regex": "@jamacademy\\.com$", "$options": "i"}}):
+        new_email = u["email"].split("@")[0] + "@rgpacademy.com"
+        existing = await db.users.find_one({"email": new_email})
+        if existing:
+            # Duplicate collision: keep whichever has real content (courses/tests/enrollments/attempts).
+            # If existing rgp one is empty and the old jam one has content, remove the empty and migrate.
+            has_content = lambda uid: (
+                db.courses.count_documents({"teacher_id": uid})
+                or db.tests.count_documents({"teacher_id": uid})
+                or db.enrollments.count_documents({"student_id": uid})
+                or db.test_attempts.count_documents({"student_id": uid})
+            )
+            existing_content = (
+                await db.courses.count_documents({"teacher_id": existing["_id"]})
+                + await db.tests.count_documents({"teacher_id": existing["_id"]})
+                + await db.enrollments.count_documents({"student_id": existing["_id"]})
+                + await db.test_attempts.count_documents({"student_id": existing["_id"]})
+            )
+            old_content = (
+                await db.courses.count_documents({"teacher_id": u["_id"]})
+                + await db.tests.count_documents({"teacher_id": u["_id"]})
+                + await db.enrollments.count_documents({"student_id": u["_id"]})
+                + await db.test_attempts.count_documents({"student_id": u["_id"]})
+            )
+            if existing_content == 0 and old_content > 0:
+                await db.users.delete_one({"_id": existing["_id"]})
+                await db.users.update_one({"_id": u["_id"]}, {"$set": {"email": new_email}})
+                logger.info(f"Migrated user email {u['email']} -> {new_email} (removed empty duplicate)")
+            elif old_content == 0:
+                # old is empty; delete it silently
+                await db.users.delete_one({"_id": u["_id"]})
+                logger.info(f"Removed empty duplicate {u['email']} (kept {new_email})")
+            else:
+                logger.warning(f"Cannot migrate {u['email']}: both accounts have content. Admin must resolve manually.")
+        else:
+            await db.users.update_one({"_id": u["_id"]}, {"$set": {"email": new_email}})
+            logger.info(f"Migrated user email {u['email']} -> {new_email}")
     await seed()
     logger.info("Startup complete: indexes ensured, seed data checked")
 

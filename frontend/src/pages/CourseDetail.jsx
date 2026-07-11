@@ -5,7 +5,8 @@ import { api, formatApiError, uploadFile, fileUrl } from "@/lib/api";
 import EnrollModal from "@/components/EnrollModal";
 import VideoPlayerModal from "@/components/VideoPlayerModal";
 import { toast } from "sonner";
-import { PlayCircle, FileText, CheckCircle2, Circle, Plus, Users, ArrowLeft, Upload, Trash2 } from "lucide-react";
+import { PlayCircle, FileText, CheckCircle2, Circle, Plus, Users, ArrowLeft, Upload, Trash2, Radio, FileQuestion, ClipboardList } from "lucide-react";
+import dayjs from "dayjs";
 
 export default function CourseDetail() {
   const { id } = useParams();
@@ -19,12 +20,18 @@ export default function CourseDetail() {
   const [batches, setBatches] = useState([]);
   const [batchForm, setBatchForm] = useState({ name: "", start_date: "", schedule: "", capacity: "" });
   const [uploadingFor, setUploadingFor] = useState(null);
+  const [liveClasses, setLiveClasses] = useState([]);
+  const [tests, setTests] = useState([]);
+  const [assignments, setAssignments] = useState([]);
 
   const isOwner = user.role !== "student";
 
   const load = useCallback(() => {
     api.get(`/courses/${id}`).then((r) => setCourse(r.data));
     api.get(`/courses/${id}/batches`).then((r) => setBatches(r.data));
+    api.get(`/live-classes`, { params: { course_id: id } }).then((r) => setLiveClasses(r.data)).catch(() => {});
+    api.get(`/tests`).then((r) => setTests(r.data.filter((t) => t.course_id === id))).catch(() => {});
+    api.get(`/assignments`).then((r) => setAssignments(r.data.filter((a) => a.course_id === id))).catch(() => {});
     if (user.role !== "student") api.get(`/courses/${id}/students`).then((r) => setStudents(r.data));
   }, [id, user.role]);
   useEffect(load, [load]);
@@ -270,6 +277,60 @@ export default function CourseDetail() {
         </div>
       )}
 
+      {/* Cross-linked content: live classes, tests, assignments for this course */}
+      <div className="grid md:grid-cols-3 gap-4" data-testid="course-linked-content">
+        <LinkedList
+          title="Live Classes"
+          icon={Radio}
+          testid="linked-live-classes"
+          empty="No live classes scheduled for this course yet."
+          items={liveClasses}
+          renderItem={(c) => {
+            const past = c.start_time < new Date().toISOString();
+            return (
+              <div className="text-sm">
+                <div className="font-semibold">{c.title}</div>
+                <div className="text-xs text-zinc-500 mt-0.5">
+                  {dayjs(c.start_time).format("D MMM, h:mm A")} · {past ? "past" : "upcoming"}
+                  {c.batch_name && ` · ${c.batch_name}`}
+                </div>
+              </div>
+            );
+          }}
+          viewAllTo="/app/live"
+        />
+        <LinkedList
+          title="Tests"
+          icon={FileQuestion}
+          testid="linked-tests"
+          empty="No tests linked to this course yet."
+          items={tests}
+          renderItem={(t) => (
+            <div className="text-sm">
+              <div className="font-semibold">{t.title}</div>
+              <div className="text-xs text-zinc-500 mt-0.5">{t.subject} · {t.questions?.length ?? 0} Qs · {t.duration_min} min</div>
+            </div>
+          )}
+          viewAllTo="/app/tests"
+        />
+        <LinkedList
+          title="Assignments"
+          icon={ClipboardList}
+          testid="linked-assignments"
+          empty="No assignments linked to this course yet."
+          items={assignments}
+          renderItem={(a) => (
+            <div className="text-sm">
+              <div className="font-semibold">{a.title}</div>
+              <div className="text-xs text-zinc-500 mt-0.5">
+                {a.subject}{a.due_date ? ` · Due ${dayjs(a.due_date).format("D MMM")}` : ""}
+              </div>
+            </div>
+          )}
+          viewAllTo="/app/assignments"
+        />
+      </div>
+
       {isOwner && (
         <div className="space-y-3">
           <h2 className="font-heading text-xl font-bold">Enrolled Students ({students.length})</h2>
@@ -318,6 +379,32 @@ export default function CourseDetail() {
           }}
           onClose={() => setPlayerLesson(null)}
         />
+      )}
+    </div>
+  );
+}
+
+function LinkedList({ title, icon: Icon, testid, items, renderItem, empty, viewAllTo }) {
+  return (
+    <div className="border border-zinc-200" data-testid={testid}>
+      <div className="px-4 py-3 border-b border-zinc-200 bg-zinc-50 flex items-center gap-2">
+        <Icon className="w-4 h-4 text-blue-700" />
+        <h3 className="font-heading font-bold text-sm">{title}</h3>
+        <span className="ml-auto text-xs font-semibold text-zinc-500">{items.length}</span>
+      </div>
+      {items.length === 0 ? (
+        <p className="px-4 py-6 text-xs text-zinc-400">{empty}</p>
+      ) : (
+        <ul className="divide-y divide-zinc-100 max-h-64 overflow-auto">
+          {items.slice(0, 6).map((it, i) => (
+            <li key={it.id || i} className="px-4 py-2.5">{renderItem(it)}</li>
+          ))}
+        </ul>
+      )}
+      {viewAllTo && items.length > 0 && (
+        <Link to={viewAllTo} className="block text-center px-4 py-2 border-t border-zinc-200 text-xs font-semibold text-blue-700 hover:bg-zinc-50">
+          View all →
+        </Link>
       )}
     </div>
   );

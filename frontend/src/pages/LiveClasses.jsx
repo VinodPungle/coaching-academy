@@ -68,10 +68,12 @@ export default function LiveClasses() {
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs uppercase tracking-[0.15em] font-semibold text-blue-700">{c.subject}</span>
           {!isPast && <span className="text-[10px] uppercase tracking-[0.15em] font-bold bg-red-600 text-white px-1.5 py-0.5">Upcoming</span>}
-          {c.course_name && (
+          {c.course_name ? (
             <span className="text-[10px] uppercase tracking-[0.1em] font-bold bg-zinc-950 text-white px-1.5 py-0.5" data-testid={`class-scope-badge-${c.id}`}>
               {c.course_name}{c.batch_name ? ` · ${c.batch_name}` : ""}
             </span>
+          ) : (
+            <span className="text-[10px] uppercase tracking-[0.1em] font-bold bg-blue-50 text-blue-700 border border-blue-200 px-1.5 py-0.5" data-testid={`class-all-badge-${c.id}`}>For all students</span>
           )}
         </div>
         <h3 className="font-heading font-bold mt-0.5">{c.title}</h3>

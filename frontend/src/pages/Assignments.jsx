@@ -152,7 +152,11 @@ export default function AssignmentsPage() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs uppercase tracking-[0.15em] font-semibold text-blue-700">{a.subject}</span>
-                    {a.course_name && <span className="text-[10px] uppercase tracking-[0.1em] font-bold bg-zinc-950 text-white px-1.5 py-0.5" data-testid={`assignment-course-badge-${a.id}`}>{a.course_name}</span>}
+                    {a.course_name ? (
+                      <span className="text-[10px] uppercase tracking-[0.1em] font-bold bg-zinc-950 text-white px-1.5 py-0.5" data-testid={`assignment-course-badge-${a.id}`}>{a.course_name}</span>
+                    ) : (
+                      <span className="text-[10px] uppercase tracking-[0.1em] font-bold bg-blue-50 text-blue-700 border border-blue-200 px-1.5 py-0.5" data-testid={`assignment-all-badge-${a.id}`}>For all students</span>
+                    )}
                   </div>
                   <h3 className="font-heading font-bold mt-0.5">{a.title}</h3>
                   <p className="text-xs text-zinc-500 mt-1">{a.description}</p>

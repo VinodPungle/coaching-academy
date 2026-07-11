@@ -3,7 +3,7 @@ import { useAuth } from "@/context/AuthContext";
 import { NotificationsBell } from "@/components/NotificationsBell";
 import { ACADEMY_NAME } from "@/lib/config";
 import {
-  LayoutDashboard, BookOpen, Radio, FileQuestion, ClipboardList, Megaphone, LogOut, GraduationCap, Users, IndianRupee,
+  LayoutDashboard, BookOpen, Radio, FileQuestion, ClipboardList, Megaphone, LogOut, GraduationCap, Users, IndianRupee, Trophy,
 } from "lucide-react";
 
 const NAV = [
@@ -17,6 +17,8 @@ const NAV = [
 
 const ADMIN_NAV = [
   { to: "/app/dashboard", label: "Dashboard", icon: LayoutDashboard, testid: "nav-dashboard" },
+  { to: "/app/teachers", label: "Teachers", icon: GraduationCap, testid: "nav-teachers" },
+  { to: "/app/top-performers", label: "Top Performers", icon: Trophy, testid: "nav-top-performers" },
   { to: "/app/users", label: "Users", icon: Users, testid: "nav-users" },
   { to: "/app/payments", label: "Payments", icon: IndianRupee, testid: "nav-payments" },
   { to: "/app/announcements", label: "Announcements", icon: Megaphone, testid: "nav-announcements" },

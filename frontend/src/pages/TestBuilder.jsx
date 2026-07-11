@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, useParams, Link } from "react-router-dom";
 import { api, formatApiError } from "@/lib/api";
 import { toast } from "sonner";
 import { Plus, Trash2, ArrowLeft } from "lucide-react";
@@ -8,13 +8,38 @@ const emptyQ = () => ({ text: "", options: ["", "", "", ""], correct_index: 0, m
 
 export default function TestBuilder() {
   const navigate = useNavigate();
+  const { id: editId } = useParams();
+  const isEdit = Boolean(editId);
   const [meta, setMeta] = useState({ title: "", subject: "Physics", duration_min: 30, course_id: "" });
   const [questions, setQuestions] = useState([emptyQ()]);
   const [teacherCourses, setTeacherCourses] = useState([]);
+  const [loading, setLoading] = useState(isEdit);
 
   useEffect(() => {
     api.get("/teacher/courses").then((r) => setTeacherCourses(r.data));
-  }, []);
+    if (isEdit) {
+      api.get(`/tests/${editId}`).then((r) => {
+        const t = r.data;
+        setMeta({
+          title: t.title || "",
+          subject: t.subject || "Physics",
+          duration_min: t.duration_min || 30,
+          course_id: t.course_id || "",
+        });
+        const loaded = (t.questions || []).map((q) => ({
+          text: q.text,
+          options: (q.options && q.options.length === 4) ? q.options : ["", "", "", ""],
+          correct_index: q.correct_index ?? 0,
+          marks: q.marks ?? 4,
+        }));
+        setQuestions(loaded.length ? loaded : [emptyQ()]);
+        setLoading(false);
+      }).catch((err) => {
+        toast.error(formatApiError(err));
+        navigate("/app/tests");
+      });
+    }
+  }, [editId, isEdit, navigate]);
 
   const setQ = (i, patch) => setQuestions(questions.map((q, idx) => (idx === i ? { ...q, ...patch } : q)));
   const setOpt = (i, oi, v) => setQ(i, { options: questions[i].options.map((o, idx) => (idx === oi ? v : o)) });
@@ -26,32 +51,42 @@ export default function TestBuilder() {
       toast.error("Add at least one complete question (all 4 options filled)");
       return;
     }
+    const payload = {
+      ...meta,
+      course_id: meta.course_id || null,
+      duration_min: Number(meta.duration_min),
+      published: true,
+      questions: valid.map((q) => ({ ...q, marks: Number(q.marks), correct_index: Number(q.correct_index) })),
+    };
     try {
-      await api.post("/tests", {
-        ...meta,
-        course_id: meta.course_id || null,
-        duration_min: Number(meta.duration_min),
-        published: true,
-        questions: valid.map((q) => ({ ...q, marks: Number(q.marks), correct_index: Number(q.correct_index) })),
-      });
-      toast.success("Test published");
+      if (isEdit) {
+        await api.put(`/tests/${editId}`, payload);
+        toast.success("Test updated");
+      } else {
+        await api.post("/tests", payload);
+        toast.success("Test published");
+      }
       navigate("/app/tests");
     } catch (err) {
       toast.error(formatApiError(err));
     }
   };
 
+  if (loading) return <p className="text-sm text-zinc-500" data-testid="test-builder-loading">Loading test…</p>;
+
   return (
     <form onSubmit={submit} className="max-w-3xl mx-auto space-y-6">
       <Link to="/app/tests" className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-950">
         <ArrowLeft className="w-4 h-4" /> Back to tests
       </Link>
-      <h1 className="font-heading text-3xl font-black tracking-tight">Create Mock Test</h1>
+      <h1 className="font-heading text-3xl font-black tracking-tight" data-testid="test-builder-heading">
+        {isEdit ? "Modify Test" : "Create Mock Test"}
+      </h1>
 
       <div className="border border-zinc-200 p-6 grid sm:grid-cols-3 gap-4">
         <div className="sm:col-span-3">
           <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Test title</label>
-          <input data-testid="test-title-input" required value={meta.title} onChange={(e) => setMeta({ ...meta, title: e.target.value })} placeholder="JAM Physics Mock Test 2" className="mt-1 w-full border border-zinc-300 px-3 py-2 text-sm" />
+          <input data-testid="test-title-input" required value={meta.title} onChange={(e) => setMeta({ ...meta, title: e.target.value })} placeholder="Physics Mock Test 2" className="mt-1 w-full border border-zinc-300 px-3 py-2 text-sm" />
         </div>
         <div>
           <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Subject</label>
@@ -112,7 +147,7 @@ export default function TestBuilder() {
           <Plus className="w-4 h-4" /> Add question
         </button>
         <button data-testid="publish-test-button" className="px-8 py-3 font-semibold bg-blue-700 text-white hover:bg-blue-900 transition-colors">
-          Publish test
+          {isEdit ? "Save changes" : "Publish test"}
         </button>
       </div>
     </form>

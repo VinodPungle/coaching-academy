@@ -37,11 +37,13 @@ async def student_class_query(student_id: str) -> dict:
 
 
 @router.get("/live-classes")
-async def list_live_classes(user: dict = Depends(get_current_user)):
+async def list_live_classes(course_id: Optional[str] = None, user: dict = Depends(get_current_user)):
     if user["role"] in ("teacher", "admin"):
-        query = {"teacher_id": user["id"]}
+        query = {"teacher_id": user["id"]} if user["role"] == "teacher" else {}
     else:
         query = await student_class_query(user["id"])
+    if course_id:
+        query = {**query, "course_id": course_id}
     docs = await db.live_classes.find(query).sort("start_time", 1).to_list(200)
     for d in docs:
         d["id"] = d.pop("_id")
@@ -107,7 +109,8 @@ async def create_live_class(body: LiveClassBody, user: dict = Depends(require_ro
 
 @router.delete("/live-classes/{class_id}")
 async def delete_live_class(class_id: str, user: dict = Depends(require_role("teacher", "admin"))):
-    result = await db.live_classes.delete_one({"_id": class_id, "teacher_id": user["id"]})
+    query = {"_id": class_id} if user["role"] == "admin" else {"_id": class_id, "teacher_id": user["id"]}
+    result = await db.live_classes.delete_one(query)
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Live class not found")
     return {"message": "Live class deleted"}

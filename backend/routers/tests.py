@@ -146,10 +146,16 @@ async def update_test(test_id: str, body: TestBody, user: dict = Depends(require
 
 @router.delete("/tests/{test_id}")
 async def delete_test(test_id: str, user: dict = Depends(require_role("teacher", "admin"))):
-    result = await db.tests.delete_one({"_id": test_id, "teacher_id": user["id"]})
-    if result.deleted_count == 0:
+    test = await db.tests.find_one({"_id": test_id, "teacher_id": user["id"]})
+    if not test:
         raise HTTPException(status_code=404, detail="Test not found")
-    await db.test_attempts.delete_many({"test_id": test_id})
+    attempt_count = await db.test_attempts.count_documents({"test_id": test_id})
+    if attempt_count > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete this test — {attempt_count} student attempt(s) exist. Unpublish it instead.",
+        )
+    await db.tests.delete_one({"_id": test_id})
     return {"message": "Test deleted"}
 
 

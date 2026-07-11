@@ -23,6 +23,8 @@ import AssignmentsPage from "@/pages/Assignments";
 import AnnouncementsPage from "@/pages/Announcements";
 import AdminUsers from "@/pages/AdminUsers";
 import AdminPayments from "@/pages/AdminPayments";
+import AdminTeachers from "@/pages/AdminTeachers";
+import AdminTopPerformers from "@/pages/AdminTopPerformers";
 
 function Protected({ children }) {
   const { user, loading } = useAuth();
@@ -68,6 +70,7 @@ function App() {
             <Route path="live" element={<LiveClasses />} />
             <Route path="tests" element={<TestsPage />} />
             <Route path="tests/new" element={<TestBuilder />} />
+            <Route path="tests/:id/edit" element={<TestBuilder />} />
             <Route path="tests/:id/take" element={<TakeTest />} />
             <Route path="tests/:id/results" element={<TestResults />} />
             <Route path="tests/:id/review" element={<TestReview />} />
@@ -76,6 +79,8 @@ function App() {
             <Route path="announcements" element={<AnnouncementsPage />} />
             <Route path="users" element={<AdminUsers />} />
             <Route path="payments" element={<AdminPayments />} />
+            <Route path="teachers" element={<AdminTeachers />} />
+            <Route path="top-performers" element={<AdminTopPerformers />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

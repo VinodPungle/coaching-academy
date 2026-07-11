@@ -1,0 +1,45 @@
+{
+  "summary": "Iteration 4 fully verified (22/22 new-feature backend tests + all frontend flows). Rename 'Rohini's JAM Academy' -> 'Rohini's Academy' is complete across landing (title, H1, sub, footer 'Built for entrance exam aspirants'), auth page (register subtitle 'Start your journey today.', demo box shows @rgpacademy.com), header logo. Favicon.svg served (200) and referenced in index.html. Old @jamacademy.com login now fails (404) — migration successful. Teacher scope validated: /api/teacher/courses, /api/tests (with attempt_count), /api/live-classes, /api/assignments all return only own; /api/announcements returns own + admin. Student scope validated on all 4 lists (tests, assignments, live-classes, announcements) — only enrolled course_id or null items visible. Delete-test guard: DELETE returns 400 with exact message 'Cannot delete this test — N student attempt(s) exist. Unpublish it instead.' when attempts exist; 200 when zero. PUT /tests/{id} updates persisted (verified via GET). /live-classes?course_id= filter works. Admin /admin/teachers returns per-teacher breakdown (courses/students/tests/assignments/upcoming_classes/past_classes) — expandable via /admin/teachers/{id}/detail with courses/tests/live_classes/assignments arrays. Admin /admin/top-performers returns per_course + per_batch groupings. UI: /app/tests shows 'Modify' button + trash delete, 4 'FOR ALL STUDENTS' badges, course-name badge for linked; /app/tests/{id}/edit pre-fills TestBuilder. Admin nav shows nav-teachers and nav-top-performers testids; /app/teachers admin-teachers-page renders 4 teacher rows; /app/top-performers admin-top-performers-page renders 'By Course' / 'By Batch' toggle with data. announcement-course-select present when Post form is opened. CourseDetail (teacher view) exposes course-linked-content + linked-live-classes + linked-tests + linked-assignments. Student view of /app/tests shows correct badges plus Attempted/Review/Leaderboard/Start-test actions.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Landing hero sub-heading (/app/frontend/src/pages/Landing.jsx:43)", "issues": ["Copy has a small grammar hiccup: 'everything you need to reach crack any entrance exams including IIT.' — the phrase 'to reach crack' reads awkwardly. This is the exact wording in the problem statement so it may be intentional, but flagging for main agent to confirm."]},
+      {"screen": "Seed data (/app/backend/seed.py)", "issues": ["Course titles still start with 'IIT-JAM' (e.g. 'IIT-JAM Physics Complete Course'). These are references to the IIT-JAM exam not the academy brand, so likely intentional, but the surface still shows 'IIT-JAM' badges on tests/announcements/course-cards. Not a bug per spec ('no IIT-JAM branding remains on hero' — hero is clean); flagging only for awareness."]},
+      {"screen": "Admin /app/teachers (/app/frontend/src/pages/AdminTeachers.jsx)", "issues": ["Left-over TEST_ prefixed teachers ('TEST Teacher test_teach_*') appear in the list because earlier iteration tests created them without cleanup. Not a bug in this iteration; recommend a one-time cleanup script or teardown fixture in prior test files."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration4.py",
+    "/app/test_reports/pytest/iteration_4.xml",
+    "/app/test_reports/pytest/iteration_4_full.xml"
+  ],
+  "action_items": [
+    "Optional: fix the awkward 'to reach crack any entrance exams' phrasing on Landing hero sub-heading (likely intended 'to crack any entrance exam' — please confirm with user).",
+    "Optional: cleanup TEST_ prefixed leftover teachers/students in the DB (test_teach_*, test_it3_*, etc.). Non-blocking.",
+    "Optional: hoist old test files (backend_test.py, test_iteration3.py, test_new_features.py) to update seed-count assumptions (2 batches per course, etc.) — 8 pre-existing regression failures stem from prior-test data mutation, NOT from this iteration's changes. All iteration_4 tests pass."
+  ],
+  "critical_code_review_comments": [
+    "server.py startup migration (@jamacademy.com -> @rgpacademy.com) uses an unused inner `has_content` lambda (dead code) — safe to remove.",
+    "routers/tests.py update_test correctly re-generates question ids via uuid on every PUT. This means the front-end must NOT rely on question ids surviving an edit; if any UI feature (e.g., linking a leaderboard entry to a specific question) depends on stable ids, this will break. Consider preserving existing question ids when only text/options change.",
+    "routers/admin.py admin_teachers has a nested `def agg_count(pipeline)` that is never called — dead code, remove.",
+    "routers/admin.py admin_top_performers loops per-course/per-batch and does a separate `db.enrollments.find(...)` inside each loop (N+1). For large datasets this could be slow; consider one aggregate grouped by course_id/batch_id.",
+    "routers/live_classes.student_class_query — batch scope OR clause includes {'course_id': e.course_id, 'batch_id': {'$in': [None, e.batch_id]}}. If batch_id is None on the enrollment, the resulting $in is [None, None] which is fine, but semantically the check could be simplified to just batch_id: None.",
+    "routers/announcements.py delete allows a teacher to delete their own only — verified. Admin can delete any — verified. Good.",
+    "Frontend Landing.jsx line 43: 'everything you need to reach crack any entrance exams including IIT.' — the string 'to reach crack' is a grammatical typo. Please verify intent."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration4.py (new)",
+    "/app/backend/tests/backend_test.py (jamacademy.com -> rgpacademy.com)",
+    "/app/backend/tests/test_iteration3.py (jamacademy.com -> rgpacademy.com)",
+    "/app/backend/tests/test_new_features.py (jamacademy.com -> rgpacademy.com)"
+  ],
+  "success_rate": {"backend": "100% (22/22 iteration_4 tests). Legacy suites 73/81 passing; 8 pre-existing failures unrelated to iteration_4 (seed-count assumptions from earlier tests + one string assertion for 'JAM' branding that no longer applies).", "frontend": "100% (all iteration_4 flows verified)"},
+  "test_credentials": "Admin: admin@rgpacademy.com / Admin@123 · Teacher: teacher@rgpacademy.com / Teacher@123 · Student: student@rgpacademy.com / Student@123. All seeded on backend startup after migration.",
+  "seed_data_creation": "Test data uses TEST_ prefix (TEST_delete_*, TEST_edit_*, TEST_ann_*, TEST_attempted_*). Some are cleaned up in-test, TEST_attempted_* is deliberately left with an attempt (to make the delete-guard test idempotent on re-runs). No production/seed data was modified.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "iteration_4 features (rename + scope + admin breakdowns + delete-test guard + course cross-linking + For-all-students badges) all verified end-to-end. If re-running old suites, note: backend_test.py TestExams::test_student_full_flow now fails 'seed should provide 2 batches per course' — the failure is caused by test_it3 fixtures deleting the 2nd batch on prior runs (data mutation), NOT by any code regression. To fully reset: mongo shell drop test_database + restart backend to re-seed. Migration @jamacademy.com -> @rgpacademy.com is idempotent (only fires when jam users still exist). Payment/Zoom/Resend still MOCKED as documented in iterations 1-3.",
+  "rca of the issue": "N/A — no bugs found in scope of iteration_4. The 8 legacy regression failures are caused by (a) prior-test data mutation leaving <2 batches per course, and (b) one legacy assertion `assert 'JAM' in response.text` on the API root which is now legitimately gone after the rename. Neither is a code regression."
+}
