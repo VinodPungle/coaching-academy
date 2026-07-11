@@ -40,7 +40,7 @@ export default function Landing() {
             Crack Exams with the most experienced faculties.
           </h1>
           <p className="mt-6 text-base md:text-lg text-zinc-500 leading-relaxed max-w-lg" data-testid="hero-subheading">
-            Live classes, structured courses, mock tests and personal mentorship — everything you need to reach crack any entrance exams including IIT.
+            Live classes, structured courses, mock tests and personal mentorship — everything you need to crack any entrance exam, including IIT.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link to="/auth?mode=register" data-testid="hero-cta-student" className="inline-flex items-center gap-2 px-6 py-3 bg-blue-700 text-white font-semibold hover:bg-blue-900 transition-colors">

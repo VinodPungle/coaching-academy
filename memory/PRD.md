@@ -1,7 +1,7 @@
-# PRD — JAM Academy LMS (Edmingle-style, IIT-JAM coaching)
+# PRD — Rohini's Academy LMS (Edmingle-style, entrance-exam coaching)
 
 ## Original Problem Statement
-Create a website with Edmingle LMS features for an educational academy providing IIT-JAM coaching, with potential to scale into a SaaS platform. Teacher and Student portals with Edmingle-like features. User approved defaults (MongoDB, JWT auth, agent-chosen design).
+Create a website with Edmingle LMS features for an educational academy providing entrance-exam coaching (originally focused on IIT-JAM, now generalised to all entrance exams), with potential to scale into a SaaS platform. Teacher and Student portals with Edmingle-like features. User approved defaults (MongoDB, JWT auth, agent-chosen design).
 
 ## Tech Stack
 - React 19 + Tailwind + shadcn (frontend), FastAPI + Motor/MongoDB (backend)
@@ -77,8 +77,27 @@ Create a website with Edmingle LMS features for an educational academy providing
 ## Backlog / Roadmap
 - P0: Real Stripe/Razorpay gateway integration once user provides keys (wire into payments.py confirm + webhooks; UI already built)
 - P0: Resend domain verification (user must verify domain at resend.com/domains, then change SENDER_EMAIL) so emails deliver to all users
-- P2: Batch-scoped announcements, notification pagination, background email queue (notify() uses fire-and-forget create_task)
-- P3 (SaaS): multi-tenant academies (white-label), admin panel, live class recordings, Zoom integration, mobile PWA
+- P1: Automatic WhatsApp reminders 30 min before live classes (scheduler)
+- P2: Batch-scoped announcements, notification pagination, background email queue
+- P2: Move local uploads to S3/Blob for horizontal scaling
+- P3 (SaaS): multi-tenant academies (white-label), mobile PWA
+
+## Iteration 4 — Feb 2026 (Hierarchy, Access Control, Rebranding — tested 22/22 iteration_4.json)
+- Rebranded "Rohini's JAM Academy" → "Rohini's Academy" (frontend + backend .env, config.js, notify.py, seed.py, index.html title, footer). App is now presented as generic entrance-exam coaching (no IIT-JAM branding on hero, subjects list expanded).
+- Landing page copy updated: hero H1, sub-heading, footer tag, subjects list, subhead moved to entrance-exam framing.
+- Favicon: /public/favicon.svg (GraduationCap) added and referenced in index.html.
+- User email migration: startup migration @jamacademy.com → @rgpacademy.com (passwords preserved). Handles empty-duplicate cleanup safely.
+- Access-control tightening:
+  - Teacher scope preserved on tests/live-classes/assignments/courses; announcements now filtered to own + admin-posted.
+  - Student announcements filtered to enrolled courses + global.
+  - Delete-test guard: 400 with clear message when attempts exist.
+  - Delete announcement + delete live class: teacher can delete only own; admin can delete any.
+- Test edit (Modify) flow: /app/tests/:id/edit reuses TestBuilder in edit mode. PUT /api/tests/{id} already existed on backend.
+- Course cross-links: CourseDetail now shows 3 cards (Live Classes / Tests / Assignments) filtered to the course.
+- 'For all students' badges on Tests, Assignments, Live Classes, Announcements when unlinked.
+- Admin per-teacher breakdown: GET /api/admin/teachers, GET /api/admin/teachers/{id}/detail; new /app/teachers page.
+- Admin top performers: GET /api/admin/top-performers (per_course + per_batch); new /app/top-performers page.
+- Admin nav: added "Teachers" and "Top Performers" links.
 
 ## Notes
-- Credentials in /app/memory/test_credentials.md; auth test guide in /app/auth_testing.md
+- Credentials in /app/memory/test_credentials.md; all seeded users now use @rgpacademy.com.

@@ -65,13 +65,6 @@ async def startup():
         existing = await db.users.find_one({"email": new_email})
         if existing:
             # Duplicate collision: keep whichever has real content (courses/tests/enrollments/attempts).
-            # If existing rgp one is empty and the old jam one has content, remove the empty and migrate.
-            has_content = lambda uid: (
-                db.courses.count_documents({"teacher_id": uid})
-                or db.tests.count_documents({"teacher_id": uid})
-                or db.enrollments.count_documents({"student_id": uid})
-                or db.test_attempts.count_documents({"student_id": uid})
-            )
             existing_content = (
                 await db.courses.count_documents({"teacher_id": existing["_id"]})
                 + await db.tests.count_documents({"teacher_id": existing["_id"]})
