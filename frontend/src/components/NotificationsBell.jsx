@@ -1,13 +1,26 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { api } from "@/lib/api";
-import { Bell, CheckCheck } from "lucide-react";
+import { api, formatApiError } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
+import { toast } from "sonner";
+import { Bell, CheckCheck, MessageCircle } from "lucide-react";
 import dayjs from "dayjs";
 
 export const NotificationsBell = () => {
   const [data, setData] = useState({ items: [], unread: 0 });
   const [open, setOpen] = useState(false);
+  const { user } = useAuth();
+  const [phone, setPhone] = useState(user?.phone || "");
   const navigate = useNavigate();
+
+  const savePhone = async () => {
+    try {
+      await api.put("/auth/profile", { phone });
+      toast.success(phone ? "WhatsApp number saved" : "WhatsApp number removed");
+    } catch (e) {
+      toast.error(formatApiError(e));
+    }
+  };
 
   const load = useCallback(() => {
     api.get("/notifications").then((r) => setData(r.data)).catch(() => {});
@@ -76,6 +89,24 @@ export const NotificationsBell = () => {
                   </div>
                 </button>
               ))}
+            </div>
+            <div className="border-t border-zinc-200 px-4 py-3 bg-zinc-50">
+              <p className="text-[10px] uppercase tracking-[0.15em] font-semibold text-zinc-500 flex items-center gap-1.5">
+                <MessageCircle className="w-3.5 h-3.5 text-green-600" /> Get these on WhatsApp
+              </p>
+              <div className="mt-2 flex gap-2">
+                <input
+                  data-testid="whatsapp-phone-input"
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+919876543210"
+                  className="flex-1 border border-zinc-300 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-700"
+                />
+                <button onClick={savePhone} data-testid="whatsapp-phone-save" className="px-3 py-1.5 text-xs font-semibold bg-blue-700 text-white hover:bg-blue-900 transition-colors">
+                  Save
+                </button>
+              </div>
             </div>
           </div>
         </>

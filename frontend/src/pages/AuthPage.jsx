@@ -9,7 +9,7 @@ export default function AuthPage() {
   const [params] = useSearchParams();
   const [mode, setMode] = useState(params.get("mode") === "register" ? "register" : "login");
   const [role, setRole] = useState(params.get("role") === "teacher" ? "teacher" : "student");
-  const [form, setForm] = useState({ name: "", email: "", password: "" });
+  const [form, setForm] = useState({ name: "", email: "", password: "", phone: "" });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const { login, register } = useAuth();
@@ -77,6 +77,17 @@ export default function AuthPage() {
                       onChange={set("name")}
                       className="mt-1.5 w-full border border-zinc-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-700"
                       placeholder="Rahul Verma"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs uppercase tracking-[0.2em] font-semibold text-zinc-500">WhatsApp number (optional)</label>
+                    <input
+                      data-testid="register-phone-input"
+                      type="tel"
+                      value={form.phone}
+                      onChange={set("phone")}
+                      className="mt-1.5 w-full border border-zinc-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-700"
+                      placeholder="+919876543210"
                     />
                   </div>
                 </>

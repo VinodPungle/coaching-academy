@@ -20,6 +20,11 @@ class RegisterBody(BaseModel):
     email: EmailStr
     password: str
     role: str = "student"
+    phone: str = ""
+
+
+class ProfileBody(BaseModel):
+    phone: str = ""
 
 
 class LoginBody(BaseModel):
@@ -52,6 +57,7 @@ async def register(body: RegisterBody, response: Response):
         "email": email,
         "password_hash": hash_password(body.password),
         "role": body.role,
+        "phone": body.phone.strip(),
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.users.insert_one(doc)
@@ -80,6 +86,15 @@ async def logout(response: Response):
 @router.get("/me")
 async def me(user: dict = Depends(get_current_user)):
     return user
+
+
+@router.put("/profile")
+async def update_profile(body: ProfileBody, user: dict = Depends(get_current_user)):
+    phone = body.phone.strip()
+    if phone and not phone.startswith("+"):
+        raise HTTPException(status_code=400, detail="Phone must include country code, e.g. +919876543210")
+    await db.users.update_one({"_id": user["id"]}, {"$set": {"phone": phone}})
+    return {"message": "Profile updated", "phone": phone}
 
 
 class ForgotPasswordBody(BaseModel):

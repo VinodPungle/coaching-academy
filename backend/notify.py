@@ -4,6 +4,7 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 import resend
+from twilio.rest import Client as TwilioClient
 from database import db
 
 logger = logging.getLogger(__name__)
@@ -57,6 +58,34 @@ def email_template(title: str, body: str, cta_label: str = "", cta_url: str = ""
 </table>"""
 
 
+def whatsapp_configured() -> bool:
+    return all(os.environ.get(k, "").strip() for k in ("TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_WHATSAPP_FROM"))
+
+
+async def send_whatsapp(phone: str, text: str):
+    if not phone or not phone.strip().startswith("+"):
+        return None
+    if not whatsapp_configured():
+        logger.info(f"[WHATSAPP demo mode] to={phone} text={text[:60]}")
+        return None
+
+    def _send():
+        client = TwilioClient(os.environ["TWILIO_ACCOUNT_SID"], os.environ["TWILIO_AUTH_TOKEN"])
+        return client.messages.create(
+            from_=os.environ["TWILIO_WHATSAPP_FROM"],
+            to=f"whatsapp:{phone.strip()}",
+            body=text,
+        )
+
+    try:
+        result = await asyncio.to_thread(_send)
+        logger.info(f"WhatsApp sent to {phone}: {result.sid}")
+        return result
+    except Exception as e:
+        logger.error(f"WhatsApp send failed to {phone}: {e}")
+        return None
+
+
 async def notify(user_ids: list, title: str, body: str, link: str = "",
                  email_subject: str = None, email_html: str = None):
     user_ids = list(set(user_ids))
@@ -69,7 +98,10 @@ async def notify(user_ids: list, title: str, body: str, link: str = "",
         for uid in user_ids
     ]
     await db.notifications.insert_many(docs)
-    if email_subject:
-        users = await db.users.find({"_id": {"$in": user_ids}}).to_list(1000)
-        for u in users:
+    users = await db.users.find({"_id": {"$in": user_ids}}).to_list(2000)
+    wa_text = f"*{ACADEMY_NAME}*\n\n*{title}*\n{body}"
+    for u in users:
+        if email_subject:
             asyncio.create_task(send_email(u["email"], email_subject, email_html or email_template(title, body)))
+        if u.get("phone"):
+            asyncio.create_task(send_whatsapp(u["phone"], wa_text))
