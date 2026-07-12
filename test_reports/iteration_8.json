@@ -1,0 +1,39 @@
+{
+  "summary": "Iteration 8 followup — verified the 3 optional cleanups from iteration_7 are applied and working. All 5 targeted tests pass and full in-scope regression is 64/64 green (in serial mode).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "PUT /api/admin/payments/{payment_id}", "issue": "Amount-overage validation at lines 350-352 still inlines the check that `_assert_amount_within_outstanding` performs at line 247-249. Minor DRY nit (same string, same 400 status). Non-blocking; both paths emit identical .2f messages after this iteration."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iteration8_edit_symmetry.py",
+    "/app/test_reports/pytest/iteration_8.xml",
+    "/app/test_reports/pytest/iteration_8_full.xml"
+  ],
+  "action_items": [
+    "NONE from this pass — all 3 iteration_7 followup items are verified applied and working end-to-end.",
+    "OPTIONAL (carried over from iteration_7): admin_edit_payment still inlines the over-amount check (lines 350-352) that `_assert_amount_within_outstanding` already implements. Extract to reuse for full DRY. Both endpoints now emit identical .2f messages, so it's cosmetic."
+  ],
+  "critical_code_review_comments": [
+    "payments.py:365-368 — admin_edit_payment now delegates to `_maybe_enroll_and_notify` correctly. Confirmed via grep + AST-style regex on function body: NO `db.enrollments.insert_one` remains inside the function.",
+    "payments.py:88 & 249 & 352 — all three ₹ formatters now use `.2f` (₹1000.00 / ₹600.00 / ₹500.00). Precision inconsistency resolved.",
+    "payments.py:369 — PUT response is now `{'message': 'Payment updated', 'auto_granted': bool}`. API symmetry with POST /admin/payments/record confirmed.",
+    "payments.py:298 & 301 — email body still uses `.0f` for the ₹ display (₹1000). This is intentional/OK for human-readable emails (no fractional paise). Not flagged as an issue.",
+    "Refactor scope is complete. No new critical issues found."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration8_edit_symmetry.py (new — 5 tests)"
+  ],
+  "success_rate": {
+    "backend": "5/5 (100%) new followup tests + 64/64 (100%) full in-scope regression (serial mode)",
+    "frontend": "N/A (backend-only task)"
+  },
+  "test_credentials": "Admin: admin@rgpacademy.com/Admin@123 · Teacher: teacher@rgpacademy.com/Teacher@123 · Student: student@rgpacademy.com/Student@123",
+  "seed_data_creation": "test_iteration8_edit_symmetry.py creates 4 hermetic paid courses (TEST_iter8_*, prices ₹1000/₹1000/₹1000/₹1000) and 4 fresh students (TEST_iter8_stu_*@example.com). Courses are deleted in teardown; students remain but are prefixed for future cleanup.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iteration 8 refactor followup is fully verified. Backend is clean at 64/64 in-scope tests. Next iteration can safely start from a green baseline. If parallel-run flakes still appear (see iteration_7 rca), they are cross-test-pollution from legacy `courses[0]` picks in test_iteration5_bugfix.py L190 & test_iteration6_bugfix.py L57-64 — main agent has this tracked as separate work per iteration_7.json.",
+  "rca of the issue": "No new bugs. All 3 review-request items verified: (1) PUT edit-up on partial returns `{message, auto_granted: true}` and student is enrolled per GET /api/student/enrollments (confirmed with fresh course+student, ₹400 partial then edit-up to ₹1000); (2) PUT edit-down on already-fully-paid record returns `auto_granted: false` (confirmed: full ₹1000 → grant_access=True → student enrolled → edit down to ₹800 → auto_granted:false because helper's `existing` check short-circuits); (3) both `_resolve_razorpay_amount` and `_assert_amount_within_outstanding` use .2f (confirmed via regex on error detail: ₹600.00 and ₹1000.00 respectively); refactor confirmation: `admin_edit_payment` body has zero `db.enrollments.insert_one` occurrences and correctly calls `_maybe_enroll_and_notify`."
+}

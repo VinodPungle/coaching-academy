@@ -85,7 +85,7 @@ def _resolve_razorpay_amount(remaining: float, requested: Optional[float]) -> fl
         raise HTTPException(status_code=400, detail="No outstanding balance for this course")
     amount = float(requested) if requested else remaining
     if amount <= 0 or amount > remaining:
-        raise HTTPException(status_code=400, detail=f"Amount must be between ₹1 and ₹{remaining:.0f}")
+        raise HTTPException(status_code=400, detail=f"Amount must be between ₹1 and ₹{remaining:.2f}")
     return amount
 
 
@@ -358,34 +358,15 @@ async def admin_edit_payment(payment_id: str, body: PaymentEditBody, user: dict 
     await db.payments.update_one({"_id": payment_id}, {"$set": update})
     # Auto-enroll if this edit pushes total paid to full fee (and student wasn't enrolled)
     new_total = other_paid + float(body.amount)
+    auto_granted = False
     if fee > 0 and new_total >= fee:
-        student_id = payment["student_id"]
-        course_id = payment["course_id"]
-        existing = await db.enrollments.find_one({"course_id": course_id, "student_id": student_id})
-        if not existing:
-            await db.enrollments.insert_one({
-                "_id": str(uuid.uuid4()),
-                "course_id": course_id,
-                "student_id": student_id,
-                "batch_id": payment.get("batch_id"),
-                "completed_lessons": [],
-                "payment_id": payment_id,
-                "granted_by_admin": True,
-                "grant_reason": "fully_paid",
-                "enrolled_at": datetime.now(timezone.utc).isoformat(),
-            })
-            student = await db.users.find_one({"_id": student_id})
-            await notify(
-                [student_id], "Enrolled", f"Full payment received for {course['title']} — access unlocked.",
-                f"/app/courses/{course_id}",
-                email_subject=f"Enrolled in {course['title']}",
-                email_html=email_template(
-                    f"Enrolled in {course['title']}",
-                    f"Hi {(student or {}).get('name','')},<br/>Your full payment of ₹{fee:.0f} has been received. Access to <b>{course['title']}</b> is now unlocked.",
-                ),
-                cc_admin=True,
+        student = await db.users.find_one({"_id": payment["student_id"]})
+        if student:
+            auto_granted = await _maybe_enroll_and_notify(
+                student, course, payment_id, payment.get("batch_id"),
+                fee, new_total, "fully_paid",
             )
-    return {"message": "Payment updated"}
+    return {"message": "Payment updated", "auto_granted": auto_granted}
 
 
 @router.delete("/admin/payments/{payment_id}")
