@@ -15,7 +15,11 @@ async def get_certificate(course_id: str, user: dict = Depends(require_role("stu
     course = await db.courses.find_one({"_id": course_id})
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
-    total = sum(len(s.get("lessons", [])) for s in course.get("sections", []))
+    total = sum(
+        len(st.get("lessons", []))
+        for s in course.get("sections", [])
+        for st in s.get("sub_topics", [])
+    )
     done = len(enrollment.get("completed_lessons", []))
     if total == 0 or done < total:
         raise HTTPException(status_code=400, detail=f"Complete all lessons to earn your certificate ({done}/{total} done)")

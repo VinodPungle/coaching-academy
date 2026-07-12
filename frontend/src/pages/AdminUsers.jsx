@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { api, formatApiError } from "@/lib/api";
 import { toast } from "sonner";
-import { Search, Trash2 } from "lucide-react";
+import { Search, Trash2, Sparkles } from "lucide-react";
 import dayjs from "dayjs";
 
 export default function AdminUsers() {
@@ -11,6 +11,8 @@ export default function AdminUsers() {
   const [q, setQ] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [cleanupBusy, setCleanupBusy] = useState(false);
+  const [showCleanup, setShowCleanup] = useState(false);
 
   const load = useCallback(() => {
     const params = new URLSearchParams();
@@ -45,9 +47,49 @@ export default function AdminUsers() {
     }
   };
 
+  const cleanupTestUsers = async () => {
+    setCleanupBusy(true);
+    try {
+      const { data } = await api.post("/admin/cleanup-test-users");
+      toast.success(`Removed ${data.deleted} test user${data.deleted !== 1 ? "s" : ""}`);
+      setShowCleanup(false);
+      load();
+    } catch (e) {
+      toast.error(formatApiError(e));
+    } finally {
+      setCleanupBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <h1 className="font-heading text-3xl font-black tracking-tight">Users</h1>
+      <div className="flex items-end justify-between flex-wrap gap-3">
+        <h1 className="font-heading text-3xl font-black tracking-tight">Users</h1>
+        <button
+          onClick={() => setShowCleanup(true)}
+          data-testid="cleanup-test-users-button"
+          className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold border border-zinc-300 hover:bg-zinc-100 text-zinc-600"
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          Cleanup TEST_* users
+        </button>
+      </div>
+
+      {showCleanup && (
+        <div className="border border-red-200 bg-red-50 p-4 flex items-start gap-3" data-testid="cleanup-confirm-panel">
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-red-900">Remove all TEST_* users?</p>
+            <p className="text-xs text-red-700 mt-1">Deletes users whose name starts with "TEST_" plus all their courses, tests, enrollments, attempts, submissions and notifications. Cannot be undone.</p>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <button disabled={cleanupBusy} onClick={cleanupTestUsers} data-testid="cleanup-confirm-button" className="px-3 py-1.5 text-xs font-bold bg-red-600 text-white hover:bg-red-800 disabled:opacity-50">
+              {cleanupBusy ? "Removing…" : "Yes, remove"}
+            </button>
+            <button onClick={() => setShowCleanup(false)} className="px-3 py-1.5 text-xs font-semibold border border-red-300 text-red-800 hover:bg-red-100">Cancel</button>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-56 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
@@ -73,6 +115,7 @@ export default function AdminUsers() {
             <tr>
               <th className="px-5 py-3 font-semibold">Name</th>
               <th className="px-5 py-3 font-semibold">Email</th>
+              <th className="px-5 py-3 font-semibold">Phone</th>
               <th className="px-5 py-3 font-semibold">Role</th>
               <th className="px-5 py-3 font-semibold">Joined</th>
               <th className="px-5 py-3"></th>
@@ -83,6 +126,15 @@ export default function AdminUsers() {
               <tr key={u.id} className="border-t border-zinc-100" data-testid={`admin-user-row-${u.id}`}>
                 <td className="px-5 py-3 font-medium">{u.name}{u.id === user.id && <span className="text-xs text-zinc-400 ml-1">(you)</span>}</td>
                 <td className="px-5 py-3 text-zinc-500">{u.email}</td>
+                <td className="px-5 py-3 text-zinc-500" data-testid={`admin-user-phone-${u.id}`}>
+                  {u.phone ? (
+                    <a href={`https://wa.me/${u.phone.replace(/[^\d+]/g, "")}`} target="_blank" rel="noreferrer" className="text-blue-700 hover:underline">
+                      {u.phone}
+                    </a>
+                  ) : (
+                    <span className="text-zinc-300">—</span>
+                  )}
+                </td>
                 <td className="px-5 py-3">
                   <select
                     data-testid={`admin-role-select-${u.id}`}

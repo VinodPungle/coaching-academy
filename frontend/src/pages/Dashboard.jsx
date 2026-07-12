@@ -1,11 +1,40 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import { api } from "@/lib/api";
-import { BookOpen, FileQuestion, BarChart3, ClipboardList, Users, Radio, Plus } from "lucide-react";
+import { api, formatApiError } from "@/lib/api";
+import { toast } from "sonner";
+import { BookOpen, FileQuestion, BarChart3, ClipboardList, Users, Radio, Plus, Sparkles } from "lucide-react";
 import { TeacherAnalytics } from "@/components/TeacherAnalytics";
 import { AdminDashboard } from "@/components/AdminDashboard";
 import dayjs from "dayjs";
+
+function FreeCourseCard({ course, onEnrolled }) {
+  const [busy, setBusy] = useState(false);
+  const enrol = async () => {
+    setBusy(true);
+    try {
+      await api.post(`/courses/${course.id}/enroll`, {});
+      toast.success("Enrolled in free course");
+      onEnrolled?.();
+    } catch (err) { toast.error(formatApiError(err)); }
+    finally { setBusy(false); }
+  };
+  return (
+    <div className="bg-white p-4" data-testid={`free-course-card-${course.id}`}>
+      <div className="flex items-center gap-1 text-[10px] uppercase tracking-[0.15em] font-bold text-green-700 mb-2">
+        <Sparkles className="w-3 h-3" /> Free
+      </div>
+      <h3 className="font-heading font-bold text-sm leading-tight line-clamp-2">{course.title}</h3>
+      <p className="text-[11px] text-zinc-500 mt-1 line-clamp-2">{course.description}</p>
+      <div className="mt-3 flex items-center gap-2">
+        <button onClick={enrol} disabled={busy} data-testid={`enrol-free-${course.id}`} className="flex-1 px-2.5 py-1.5 text-xs font-semibold bg-blue-700 text-white hover:bg-blue-900 disabled:opacity-50">
+          {busy ? "…" : "Enrol free"}
+        </button>
+        <Link to={`/app/courses/${course.id}`} className="px-2.5 py-1.5 text-xs font-semibold border border-zinc-300 hover:bg-zinc-100">View</Link>
+      </div>
+    </div>
+  );
+}
 
 function StatCard({ icon: Icon, label, value, testid }) {
   return (
@@ -50,10 +79,11 @@ export default function Dashboard() {
   const [data, setData] = useState(null);
   const isAdmin = user.role === "admin";
 
-  useEffect(() => {
+  const load = () => {
     if (isAdmin) return;
     api.get(user.role === "student" ? "/dashboard/student" : "/dashboard/teacher").then((r) => setData(r.data));
-  }, [user.role, isAdmin]);
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [user.role, isAdmin]);
 
   if (isAdmin) return <AdminDashboard user={user} />;
   if (!data) return <p className="text-sm text-zinc-500" data-testid="dashboard-loading">Loading dashboard…</p>;
@@ -85,6 +115,19 @@ export default function Dashboard() {
             ))}
           </div>
         </div>
+        {data.free_courses && data.free_courses.length > 0 && (
+          <div className="border border-green-200 bg-green-50/40" data-testid="dashboard-free-courses">
+            <div className="px-6 py-4 border-b border-green-200 flex items-center justify-between">
+              <h2 className="font-heading font-bold">Free courses — start learning today</h2>
+              <span className="text-xs uppercase tracking-[0.15em] font-bold text-green-700">{data.free_courses.length} available</span>
+            </div>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-px bg-green-200">
+              {data.free_courses.map((c) => (
+                <FreeCourseCard key={c.id} course={c} onEnrolled={load} />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   }

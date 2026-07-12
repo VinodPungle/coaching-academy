@@ -54,7 +54,24 @@ export default function AdminTeachers() {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="font-semibold text-sm">{t.name}</div>
-                <div className="text-xs text-zinc-500">{t.email}</div>
+                <div className="text-xs text-zinc-500">
+                  {t.email}
+                  {t.phone && (
+                    <>
+                      {" · "}
+                      <a
+                        href={`https://wa.me/${t.phone.replace(/[^\d+]/g, "")}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-blue-700 hover:underline"
+                        data-testid={`teacher-phone-${t.id}`}
+                      >
+                        {t.phone}
+                      </a>
+                    </>
+                  )}
+                </div>
               </div>
               <div className="hidden sm:flex gap-6 text-xs">
                 <Stat icon={BookOpen} label="Courses" value={t.courses} />

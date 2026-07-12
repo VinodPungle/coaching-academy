@@ -1,0 +1,43 @@
+{
+  "phase": 1,
+  "title": "Content hierarchy — Sub Topic layer (Course → Section → Sub Topic → Lesson)",
+  "backend_tests": {
+    "file": "/app/backend/tests/test_phase1_subtopics.py",
+    "results": "10/10 passing",
+    "covers": [
+      "Startup migration backfills sub_topics for all existing sections (idempotent)",
+      "Adding a new section auto-creates a default 'Overview' sub topic",
+      "Empty section title rejected (400)",
+      "Sub topic CRUD: add, rename, duplicate name rejected (400)",
+      "Delete sub topic blocked when lessons exist (400 with clear message)",
+      "Reorder sub topics via array of ids",
+      "Add lesson requires either video URL or at least one notes attachment",
+      "GET /courses/{cid}/lessons/{lid} returns prev/next lesson ids, section/sub_topic context",
+      "Student progress % correctly counts total lessons across all sub_topics",
+      "Migration is idempotent — re-runs do not re-wrap sub topics"
+    ]
+  },
+  "frontend": {
+    "screens_verified": [
+      "/app/courses/{id} — Curriculum now shows Section → SubTopic → Lesson with collapse/expand at every level",
+      "Teacher sees: add sub topic, rename, reorder (up/down), delete, toggle comments (Phase 4 wiring), delete lesson",
+      "/app/courses/{cid}/lessons/{lid} — new Lesson Page with prev/next navigation (Phase 3 stub in place; video placeholder awaits Phase 2)"
+    ],
+    "data_testids_added": [
+      "sub-topic-{id}", "sub-topic-toggle-{id}", "sub-topic-rename-input-{id}",
+      "sub-topic-up-{id}", "sub-topic-down-{id}", "sub-topic-edit-{id}",
+      "sub-topic-comments-toggle-{id}", "sub-topic-delete-{id}",
+      "new-sub-topic-input-{section_id}", "add-sub-topic-button-{section_id}",
+      "delete-section-{id}", "delete-lesson-{id}",
+      "lesson-page", "lesson-title", "lesson-back-to-course",
+      "lesson-prev-button", "lesson-next-button", "lesson-mark-complete",
+      "lesson-note-{i}", "lesson-comments-placeholder"
+    ]
+  },
+  "warmup_completed": [
+    "Phone column shown in Admin Users table (wa.me clickable link)",
+    "Phone shown in Admin Teachers listing (wa.me link)",
+    "Admin /cleanup-test-users endpoint + 'Cleanup TEST_* users' button (removed 26 stale test users in this session)"
+  ],
+  "next_phase": "Phase 2 — Lesson content and playback (Video + PDF/Notes coexist; Google Drive link fix)"
+}

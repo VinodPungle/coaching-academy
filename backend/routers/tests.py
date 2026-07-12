@@ -36,6 +36,7 @@ class TestBody(BaseModel):
     duration_min: int = 60
     published: bool = True
     course_id: Optional[str] = None
+    retakes_allowed: bool = False
     questions: List[QuestionBody] = []
 
 
@@ -110,6 +111,7 @@ async def create_test(body: TestBody, user: dict = Depends(require_role("teacher
         "subject": body.subject,
         "duration_min": body.duration_min,
         "published": body.published,
+        "retakes_allowed": body.retakes_allowed,
         "course_id": course_id,
         "course_name": course_name,
         "questions": questions,
@@ -134,6 +136,7 @@ async def update_test(test_id: str, body: TestBody, user: dict = Depends(require
         "subject": body.subject,
         "duration_min": body.duration_min,
         "published": body.published,
+        "retakes_allowed": body.retakes_allowed,
         "course_id": course_id,
         "course_name": course_name,
         "questions": questions,
@@ -165,8 +168,8 @@ async def submit_attempt(test_id: str, body: AttemptBody, user: dict = Depends(r
     if not test:
         raise HTTPException(status_code=404, detail="Test not found")
     existing = await db.test_attempts.find_one({"test_id": test_id, "student_id": user["id"]})
-    if existing:
-        raise HTTPException(status_code=400, detail="You have already attempted this test")
+    if existing and not test.get("retakes_allowed", False):
+        raise HTTPException(status_code=400, detail="You have already attempted this test. Retakes are disabled by the teacher.")
     score = 0
     correct = 0
     for q in test.get("questions", []):
@@ -186,7 +189,12 @@ async def submit_attempt(test_id: str, body: AttemptBody, user: dict = Depends(r
         "question_count": len(test.get("questions", [])),
         "submitted_at": datetime.now(timezone.utc).isoformat(),
     }
-    await db.test_attempts.insert_one(doc)
+    if existing:
+        # Retake: replace existing attempt so leaderboard/progress uses latest score
+        doc["_id"] = existing["_id"]
+        await db.test_attempts.replace_one({"_id": existing["_id"]}, doc)
+    else:
+        await db.test_attempts.insert_one(doc)
     doc["id"] = doc.pop("_id")
     return doc
 

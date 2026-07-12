@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from database import db
@@ -51,7 +51,44 @@ async def admin_users(q: Optional[str] = None, role: Optional[str] = None, user:
     docs = await db.users.find(query, {"password_hash": 0}).sort("created_at", -1).to_list(500)
     for d in docs:
         d["id"] = d.pop("_id")
+        d.setdefault("phone", "")
     return docs
+
+
+class CleanupResponse(BaseModel):
+    deleted: int
+    deleted_users: List[str]
+
+
+@router.post("/cleanup-test-users")
+async def cleanup_test_users(user: dict = Depends(require_role("admin"))):
+    """Delete users whose name starts with 'TEST_' or 'TEST ' (test artefacts). Also cleans their courses/enrollments."""
+    query = {"$or": [
+        {"name": {"$regex": "^TEST[_ ]", "$options": "i"}},
+        {"email": {"$regex": "^test[_-]?(teach|it3|new)", "$options": "i"}},
+    ], "role": {"$ne": "admin"}}
+    victims = await db.users.find(query, {"_id": 1, "name": 1, "email": 1, "role": 1}).to_list(1000)
+    deleted_names = []
+    for v in victims:
+        uid = v["_id"]
+        # cascade: remove their courses/tests/assignments/live-classes/enrollments/attempts
+        their_courses = await db.courses.find({"teacher_id": uid}, {"_id": 1}).to_list(1000)
+        their_course_ids = [c["_id"] for c in their_courses]
+        if their_course_ids:
+            await db.enrollments.delete_many({"course_id": {"$in": their_course_ids}})
+            await db.batches.delete_many({"course_id": {"$in": their_course_ids}})
+        await db.courses.delete_many({"teacher_id": uid})
+        await db.tests.delete_many({"teacher_id": uid})
+        await db.assignments.delete_many({"teacher_id": uid})
+        await db.live_classes.delete_many({"teacher_id": uid})
+        await db.announcements.delete_many({"teacher_id": uid})
+        await db.enrollments.delete_many({"student_id": uid})
+        await db.test_attempts.delete_many({"student_id": uid})
+        await db.submissions.delete_many({"student_id": uid})
+        await db.notifications.delete_many({"user_id": uid})
+        await db.users.delete_one({"_id": uid})
+        deleted_names.append(f"{v['name']} ({v['email']})")
+    return {"deleted": len(victims), "deleted_users": deleted_names}
 
 
 @router.put("/users/{user_id}/role")
@@ -154,6 +191,7 @@ async def admin_teachers(user: dict = Depends(require_role("admin"))):
             "id": tid,
             "name": t["name"],
             "email": t["email"],
+            "phone": t.get("phone", ""),
             "created_at": t.get("created_at"),
             "courses": course_counts.get(tid, 0),
             "students": student_counts.get(tid, 0),

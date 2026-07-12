@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { api, formatApiError } from "@/lib/api";
 import { toast } from "sonner";
-import { Radio, Plus, Trash2, ExternalLink, Clock } from "lucide-react";
+import { Radio, Plus, Trash2, ExternalLink, Clock, Calendar, Video, Play, Users } from "lucide-react";
 import dayjs from "dayjs";
 
 export default function LiveClasses() {
@@ -50,9 +51,43 @@ export default function LiveClasses() {
   };
 
   const remove = async (id) => {
+    if (!window.confirm("Delete this class permanently?")) return;
     await api.delete(`/live-classes/${id}`);
     toast.success("Class deleted");
     load();
+  };
+
+  const reschedule = async (id, currentStart) => {
+    const input = window.prompt("New start time (YYYY-MM-DD HH:mm):", dayjs(currentStart).format("YYYY-MM-DD HH:mm"));
+    if (!input) return;
+    const iso = new Date(input.replace(" ", "T")).toISOString();
+    try {
+      await api.put(`/live-classes/${id}/reschedule`, { start_time: iso });
+      toast.success("Class rescheduled");
+      load();
+    } catch (err) { toast.error(formatApiError(err)); }
+  };
+
+  const setRecording = async (id, current) => {
+    const url = window.prompt("Recording URL (YouTube / Drive / Zoom cloud):", current || "");
+    if (url === null) return;
+    try {
+      if (url.trim()) {
+        await api.put(`/live-classes/${id}/recording`, { recording_url: url.trim() });
+        toast.success("Recording attached");
+      } else {
+        await api.delete(`/live-classes/${id}/recording`);
+        toast.success("Recording removed");
+      }
+      load();
+    } catch (err) { toast.error(formatApiError(err)); }
+  };
+
+  const joinAsStudent = async (id, link) => {
+    try {
+      await api.post(`/live-classes/${id}/attend`);
+    } catch (err) { toast.error(formatApiError(err)); return; }
+    window.open(link, "_blank", "noopener,noreferrer");
   };
 
   const now = new Date().toISOString();
@@ -84,16 +119,39 @@ export default function LiveClasses() {
           <span>by {c.teacher_name}</span>
         </div>
       </div>
-      <div className="flex items-center gap-2 shrink-0">
-        {!isPast && c.meeting_link && (
-          <a href={c.meeting_link} target="_blank" rel="noreferrer" data-testid={`join-class-${c.id}`} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-blue-700 text-white hover:bg-blue-900 transition-colors">
-            Join class <ExternalLink className="w-3.5 h-3.5" />
-          </a>
-        )}
+      <div className="flex items-center gap-2 shrink-0 flex-wrap">
+        {isPast && c.recording_url ? (
+          <Link to={`/app/live/${c.id}/recording`} data-testid={`view-recording-${c.id}`} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-zinc-950 text-white hover:bg-zinc-800 transition-colors">
+            View recording <Play className="w-3.5 h-3.5" />
+          </Link>
+        ) : !isPast && c.meeting_link ? (
+          user.role === "student" ? (
+            <button onClick={() => joinAsStudent(c.id, c.meeting_link)} data-testid={`join-class-${c.id}`} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-blue-700 text-white hover:bg-blue-900 transition-colors">
+              Join class <ExternalLink className="w-3.5 h-3.5" />
+            </button>
+          ) : (
+            <a href={c.meeting_link} target="_blank" rel="noreferrer" data-testid={`join-class-${c.id}`} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-blue-700 text-white hover:bg-blue-900 transition-colors">
+              Join class <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          )
+        ) : null}
         {isTeacher && (
-          <button onClick={() => remove(c.id)} data-testid={`delete-class-${c.id}`} className="p-2 border border-zinc-300 text-zinc-500 hover:text-red-600 hover:border-red-300 transition-colors">
-            <Trash2 className="w-4 h-4" />
-          </button>
+          <>
+            {!isPast && (
+              <button onClick={() => reschedule(c.id, c.start_time)} data-testid={`reschedule-class-${c.id}`} className="p-2 border border-zinc-300 text-zinc-600 hover:text-blue-700 hover:border-blue-300 transition-colors" title="Reschedule">
+                <Calendar className="w-4 h-4" />
+              </button>
+            )}
+            <button onClick={() => setRecording(c.id, c.recording_url)} data-testid={`recording-class-${c.id}`} className={`p-2 border transition-colors ${c.recording_url ? "border-blue-300 text-blue-700 bg-blue-50" : "border-zinc-300 text-zinc-500 hover:text-blue-700 hover:border-blue-300"}`} title={c.recording_url ? "Recording attached" : "Attach recording"}>
+              <Video className="w-4 h-4" />
+            </button>
+            <Link to={`/app/live/${c.id}/attendance`} data-testid={`attendance-class-${c.id}`} className="p-2 border border-zinc-300 text-zinc-500 hover:text-zinc-950 hover:border-zinc-500 transition-colors" title="Attendance">
+              <Users className="w-4 h-4" />
+            </Link>
+            <button onClick={() => remove(c.id)} data-testid={`delete-class-${c.id}`} className="p-2 border border-zinc-300 text-zinc-500 hover:text-red-600 hover:border-red-300 transition-colors">
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </>
         )}
       </div>
     </div>

@@ -9,6 +9,9 @@ import AuthPage from "@/pages/AuthPage";
 import Dashboard from "@/pages/Dashboard";
 import CoursesPage from "@/pages/Courses";
 import CourseDetail from "@/pages/CourseDetail";
+import LessonPage from "@/pages/LessonPage";
+import RecordingPage from "@/pages/RecordingPage";
+import AttendancePage from "@/pages/AttendancePage";
 import LiveClasses from "@/pages/LiveClasses";
 import TestsPage from "@/pages/Tests";
 import TakeTest from "@/pages/TakeTest";
@@ -25,6 +28,8 @@ import AdminUsers from "@/pages/AdminUsers";
 import AdminPayments from "@/pages/AdminPayments";
 import AdminTeachers from "@/pages/AdminTeachers";
 import AdminTopPerformers from "@/pages/AdminTopPerformers";
+import AdminSettings from "@/pages/AdminSettings";
+import AdminEnrollments from "@/pages/AdminEnrollments";
 
 function Protected({ children }) {
   const { user, loading } = useAuth();
@@ -67,7 +72,10 @@ function App() {
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="courses" element={<CoursesPage />} />
             <Route path="courses/:id" element={<CourseDetail />} />
+            <Route path="courses/:courseId/lessons/:lessonId" element={<LessonPage />} />
             <Route path="live" element={<LiveClasses />} />
+            <Route path="live/:id/recording" element={<RecordingPage />} />
+            <Route path="live/:id/attendance" element={<AttendancePage />} />
             <Route path="tests" element={<TestsPage />} />
             <Route path="tests/new" element={<TestBuilder />} />
             <Route path="tests/:id/edit" element={<TestBuilder />} />

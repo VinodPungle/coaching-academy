@@ -62,15 +62,27 @@ async def seed():
             ("IIT-JAM Biotechnology Foundation", "Biotechnology", "Biology, Chemistry, Mathematics and Physics fundamentals for the BT paper, taught from first principles.", 3999, "5 months"),
         ]
         for title, subject, desc, price, duration in courses_data:
+            def _lesson(t, ltype, url, dur, notes=None):
+                return {"id": str(uuid.uuid4()), "title": t, "type": ltype, "url": url, "duration": dur, "notes": notes or []}
+
+            def _sub_topic(t, order, lessons):
+                return {"id": str(uuid.uuid4()), "title": t, "order": order, "lessons": lessons, "comments_enabled": True}
+
             sections = [
-                {"id": str(uuid.uuid4()), "title": f"{subject} Fundamentals", "lessons": [
-                    {"id": str(uuid.uuid4()), "title": f"Introduction to IIT-JAM {subject}", "type": "video", "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "duration": "45 min"},
-                    {"id": str(uuid.uuid4()), "title": "Syllabus Breakdown & Strategy", "type": "video", "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "duration": "30 min"},
-                    {"id": str(uuid.uuid4()), "title": "Formula Sheet — Chapter 1", "type": "pdf", "url": "https://example.com/notes.pdf", "duration": "PDF"},
+                {"id": str(uuid.uuid4()), "title": f"{subject} Fundamentals", "sub_topics": [
+                    _sub_topic("Getting Started", 0, [
+                        _lesson(f"Introduction to {subject}", "video", "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "45 min"),
+                        _lesson("Syllabus Breakdown & Strategy", "video", "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "30 min"),
+                    ]),
+                    _sub_topic("Reference Material", 1, [
+                        _lesson("Formula Sheet — Chapter 1", "video", "", "PDF", [{"id": str(uuid.uuid4()), "title": "Formula Sheet", "url": "https://example.com/notes.pdf"}]),
+                    ]),
                 ]},
-                {"id": str(uuid.uuid4()), "title": "Core Concepts", "lessons": [
-                    {"id": str(uuid.uuid4()), "title": "Core Concept Lecture 1", "type": "video", "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "duration": "60 min"},
-                    {"id": str(uuid.uuid4()), "title": "Practice Problem Set 1", "type": "pdf", "url": "https://example.com/pset1.pdf", "duration": "PDF"},
+                {"id": str(uuid.uuid4()), "title": "Core Concepts", "sub_topics": [
+                    _sub_topic("Overview", 0, [
+                        _lesson("Core Concept Lecture 1", "video", "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "60 min"),
+                        _lesson("Practice Problem Set 1", "video", "", "PDF", [{"id": str(uuid.uuid4()), "title": "Problem Set 1", "url": "https://example.com/pset1.pdf"}]),
+                    ]),
                 ]},
             ]
             await db.courses.insert_one({

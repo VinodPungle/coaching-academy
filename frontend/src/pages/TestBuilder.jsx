@@ -10,7 +10,7 @@ export default function TestBuilder() {
   const navigate = useNavigate();
   const { id: editId } = useParams();
   const isEdit = Boolean(editId);
-  const [meta, setMeta] = useState({ title: "", subject: "Physics", duration_min: 30, course_id: "" });
+  const [meta, setMeta] = useState({ title: "", subject: "Physics", duration_min: 30, course_id: "", retakes_allowed: false });
   const [questions, setQuestions] = useState([emptyQ()]);
   const [teacherCourses, setTeacherCourses] = useState([]);
   const [loading, setLoading] = useState(isEdit);
@@ -25,6 +25,7 @@ export default function TestBuilder() {
           subject: t.subject || "Physics",
           duration_min: t.duration_min || 30,
           course_id: t.course_id || "",
+          retakes_allowed: t.retakes_allowed || false,
         });
         const loaded = (t.questions || []).map((q) => ({
           text: q.text,
@@ -56,6 +57,7 @@ export default function TestBuilder() {
       course_id: meta.course_id || null,
       duration_min: Number(meta.duration_min),
       published: true,
+      retakes_allowed: Boolean(meta.retakes_allowed),
       questions: valid.map((q) => ({ ...q, marks: Number(q.marks), correct_index: Number(q.correct_index) })),
     };
     try {
@@ -104,6 +106,19 @@ export default function TestBuilder() {
             <option value="">All students</option>
             {teacherCourses.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
           </select>
+        </div>
+        <div className="sm:col-span-3">
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={meta.retakes_allowed}
+              onChange={(e) => setMeta({ ...meta, retakes_allowed: e.target.checked })}
+              data-testid="test-retakes-checkbox"
+              className="accent-blue-700 w-4 h-4"
+            />
+            <span className="font-semibold">Allow retakes</span>
+            <span className="text-xs text-zinc-500">— students can reattempt this test; their latest score is kept.</span>
+          </label>
         </div>
       </div>
 

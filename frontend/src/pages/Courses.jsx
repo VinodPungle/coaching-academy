@@ -16,7 +16,11 @@ function CourseCard({ course, footer }) {
         <p className="text-xs text-zinc-500 mt-2 line-clamp-2 flex-1">{course.description}</p>
         <div className="flex items-center gap-4 text-xs text-zinc-500 mt-3">
           <span className="inline-flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{course.duration}</span>
-          <span className="font-semibold text-zinc-950">₹{course.price}</span>
+          {course.is_free || !course.price ? (
+            <span className="font-bold text-green-700 text-xs uppercase tracking-[0.15em]" data-testid={`course-free-badge-${course.id}`}>Free</span>
+          ) : (
+            <span className="font-semibold text-zinc-950">₹{course.price}</span>
+          )}
         </div>
         <div className="mt-4">{footer}</div>
       </div>
@@ -31,7 +35,7 @@ export default function CoursesPage() {
   const [myCourses, setMyCourses] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [payCourse, setPayCourse] = useState(null);
-  const [form, setForm] = useState({ title: "", subject: "Physics", description: "", price: 0, duration: "", thumbnail: "" });
+  const [form, setForm] = useState({ title: "", subject: "Physics", description: "", price: 0, is_free: false, duration: "", thumbnail: "" });
 
   const isTeacher = user.role !== "student";
 
@@ -48,10 +52,10 @@ export default function CoursesPage() {
   const createCourse = async (e) => {
     e.preventDefault();
     try {
-      await api.post("/courses", { ...form, price: Number(form.price), published: true });
+      await api.post("/courses", { ...form, price: form.is_free ? 0 : Number(form.price), published: true });
       toast.success("Course created");
       setShowForm(false);
-      setForm({ title: "", subject: "Physics", description: "", price: 0, duration: "", thumbnail: "" });
+      setForm({ title: "", subject: "Physics", description: "", price: 0, is_free: false, duration: "", thumbnail: "" });
       load();
     } catch (err) {
       toast.error(formatApiError(err));
@@ -89,7 +93,11 @@ export default function CoursesPage() {
           </div>
           <div>
             <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Price (₹)</label>
-            <input data-testid="course-price-input" type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className="mt-1 w-full border border-zinc-300 px-3 py-2 text-sm" />
+            <input data-testid="course-price-input" type="number" min="0" disabled={form.is_free} value={form.is_free ? 0 : form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className="mt-1 w-full border border-zinc-300 px-3 py-2 text-sm disabled:opacity-50" />
+            <label className="mt-2 flex items-center gap-2 text-xs cursor-pointer">
+              <input type="checkbox" data-testid="course-is-free-checkbox" checked={form.is_free} onChange={(e) => setForm({ ...form, is_free: e.target.checked, price: e.target.checked ? 0 : form.price })} className="accent-blue-700" />
+              <span className="font-semibold text-green-700">This is a Free course</span>
+            </label>
           </div>
           <div>
             <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Thumbnail URL (optional)</label>

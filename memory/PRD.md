@@ -82,7 +82,78 @@ Create a website with Edmingle LMS features for an educational academy providing
 - P2: Move local uploads to S3/Blob for horizontal scaling
 - P3 (SaaS): multi-tenant academies (white-label), mobile PWA
 
-## Iteration 4 — Feb 2026 (Hierarchy, Access Control, Rebranding — tested 22/22 iteration_4.json)
+## Iteration 5 — Feb 12, 2026 (Phased overhaul: hierarchy, playback, comments, live-class attendance, retakes, UPI, portal mode, enrolment mgmt, free courses)
+
+Delivered in 11 phases with test coverage between each phase (41 backend tests + 15 frontend unit tests, all passing).
+
+### Phase 1 — Content hierarchy (Course → Section → Sub Topic → Lesson)
+- Startup migration wraps existing lessons under a default "Overview" sub-topic (idempotent).
+- New endpoints: POST/PUT/DELETE `/courses/{cid}/sections/{sid}/sub-topics`, reorder, comments-toggle.
+- Duplicate sub-topic names rejected; delete blocked when lessons exist.
+
+### Phase 2 — Lesson content & playback
+- Lessons hold `url` (video) + `notes[]` (PDFs) — either/both allowed.
+- Google Drive share links auto-converted to `/preview` embed URL; YouTube via react-player.
+- Clear inline error for invalid/restricted Drive links.
+- `src/lib/video.js` + `src/components/LessonVideoPlayer.jsx`.
+
+### Phase 3 — Lesson detail page (`/app/courses/:cid/lessons/:lid`)
+- Back link, Prev/Next navigation across sub-topics & sections.
+- `GET /courses/{cid}/lessons/{lid}` returns section/sub-topic context + prev/next ids.
+- Enrolled student check enforced.
+
+### Phase 4 — Reusable threaded Comments (YouTube-style)
+- `CommentsThread` component mounted on Lesson page (per lesson) and Recording page (per class).
+- Teacher can enable/disable per sub-topic and per recording; disabled state hides input.
+- Teacher/admin can moderate any comment; students only their own. Delete cascades to replies.
+
+### Phase 5 — Live Classes upgrade
+- Reschedule (past times rejected); attach/replace/remove recording URL.
+- Student "Join Class" click marks attendance (idempotent). Teacher sees `/app/live/:id/attendance`.
+- Past class with recording swaps button to "View Recording" → `/app/live/:id/recording` page (reuses LessonVideoPlayer + CommentsThread).
+
+### Phase 6 — Retakes toggle on tests
+- New `retakes_allowed` flag on tests. When true, students can reattempt; latest score replaces old (single-attempt-per-student invariant preserved).
+- Teacher can flip mid-course via edit page.
+
+### Phase 7 — Payments overhaul (Stripe removed, UPI + admin manual)
+- Stripe integration ripped out. New settings collection stores portal_mode + upi_qr_url (image) + upi_vpa (text).
+- Course-level `is_free` flag; teacher chooses Free/Paid at create/edit.
+- Paid courses in live mode display UPI QR (image) or VPA (text) with "Notify admin" CTA.
+- Admin can record payments (any amount ≤ outstanding), edit or delete them, and grant course access at their discretion — even for partial payments.
+- Dues endpoint: student sees paid/outstanding; admin sees payment history per student per course.
+
+### Phase 8 — Portal Mode
+- Admin can toggle Demo/Live. Demo lets students enrol in any course for free (fee waived).
+
+### Phase 9 — Enrolment management
+- Teacher can move a student between batches or switch to self-paced (`PUT /courses/{cid}/students/{sid}/batch`).
+- Full-batch guard on transfer.
+
+### Phase 10 — Free courses on student dashboard
+- New "Free courses" section on student dashboard with one-click enrol (skips modal).
+- Enrolled courses filtered out; hides when list is empty.
+
+### Phase 11 — Polish (cross-cutting)
+- **"Developed by VinodPungle.com"** replaces the Emergent badge in `public/index.html`.
+- Phone column in Admin Users table + Admin Teachers list (WhatsApp deep-link).
+- Admin one-click cleanup for TEST_* users (26 stale accounts removed this session).
+- Validation messages standardised across new endpoints (empty title, invalid URL/duration/amount, duplicate names, past scheduling).
+
+### Warmup (from previous message)
+- Phone visible to admin ✅
+- Cleanup script + button ✅
+
+**Test files added:**
+- `/app/backend/tests/test_phase1_subtopics.py`
+- `/app/backend/tests/test_phase3_lesson_page.py`
+- `/app/backend/tests/test_phase4_comments.py`
+- `/app/backend/tests/test_phase5_live_classes.py`
+- `/app/backend/tests/test_phase6_retakes.py`
+- `/app/backend/tests/test_phase7_payments.py`
+- `/app/backend/tests/test_phase9_10_enrollment.py`
+- `/app/frontend/src/lib/video.test.js`
+- `/app/test_reports/all_phases_summary.json`
 - Rebranded "Rohini's JAM Academy" → "Rohini's Academy" (frontend + backend .env, config.js, notify.py, seed.py, index.html title, footer). App is now presented as generic entrance-exam coaching (no IIT-JAM branding on hero, subjects list expanded).
 - Landing page copy updated: hero H1, sub-heading, footer tag, subjects list, subhead moved to entrance-exam framing.
 - Favicon: /public/favicon.svg (GraduationCap) added and referenced in index.html.

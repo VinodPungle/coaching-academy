@@ -11,6 +11,7 @@ router = APIRouter(tags=["dashboard"])
 async def student_dashboard(user: dict = Depends(require_role("student"))):
     now = datetime.now(timezone.utc).isoformat()
     enrollments = await db.enrollments.find({"student_id": user["id"]}).to_list(200)
+    enrolled_ids = {e["course_id"] for e in enrollments}
     attempts = await db.test_attempts.find({"student_id": user["id"]}).to_list(200)
     class_q = await student_class_query(user["id"])
     upcoming = await db.live_classes.find({**class_q, "start_time": {"$gte": now}}).sort("start_time", 1).to_list(5)
@@ -25,6 +26,23 @@ async def student_dashboard(user: dict = Depends(require_role("student"))):
     if attempts:
         pcts = [a["score"] / a["total"] * 100 for a in attempts if a.get("total")]
         avg_score = round(sum(pcts) / len(pcts)) if pcts else 0
+    # Phase 10: surface free courses the student is not already enrolled in
+    free = await db.courses.find({
+        "published": True,
+        "$or": [{"is_free": True}, {"price": 0}],
+    }).sort("created_at", -1).to_list(50)
+    free_courses = []
+    for c in free:
+        if c["_id"] in enrolled_ids:
+            continue
+        free_courses.append({
+            "id": c["_id"],
+            "title": c["title"],
+            "subject": c["subject"],
+            "description": (c.get("description") or "")[:140],
+            "thumbnail": c.get("thumbnail", ""),
+            "teacher_name": c.get("teacher_name"),
+        })
     return {
         "enrolled_courses": len(enrollments),
         "tests_attempted": len(attempts),
@@ -32,6 +50,7 @@ async def student_dashboard(user: dict = Depends(require_role("student"))):
         "pending_assignments": max(total_assignments - submissions, 0),
         "upcoming_classes": upcoming,
         "recent_announcements": announcements,
+        "free_courses": free_courses[:8],
     }
 
 

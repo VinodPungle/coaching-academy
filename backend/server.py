@@ -12,7 +12,7 @@ from starlette.middleware.cors import CORSMiddleware
 from database import db, client
 from seed import seed
 from notify import ACADEMY_NAME
-from routers import auth, courses, tests, live_classes, assignments, announcements, dashboard, payments, batches, files, certificates, notifications, admin
+from routers import auth, courses, tests, live_classes, assignments, announcements, dashboard, payments, batches, files, certificates, notifications, admin, comments
 
 app = FastAPI(title=f"{ACADEMY_NAME} LMS")
 
@@ -37,6 +37,7 @@ api_router.include_router(files.router)
 api_router.include_router(certificates.router)
 api_router.include_router(notifications.router)
 api_router.include_router(admin.router)
+api_router.include_router(comments.router)
 
 app.include_router(api_router)
 
@@ -90,6 +91,26 @@ async def startup():
         else:
             await db.users.update_one({"_id": u["_id"]}, {"$set": {"email": new_email}})
             logger.info(f"Migrated user email {u['email']} -> {new_email}")
+    # Phase 1: Backfill sub_topics for existing courses (Course → Section → Sub Topic → Lesson)
+    async for c in db.courses.find({"sections": {"$exists": True}}):
+        changed = False
+        for sec in c.get("sections", []):
+            if "sub_topics" not in sec:
+                existing_lessons = sec.pop("lessons", []) if isinstance(sec.get("lessons"), list) else []
+                sec["sub_topics"] = [{
+                    "id": str(__import__("uuid").uuid4()),
+                    "title": "Overview",
+                    "order": 0,
+                    "lessons": existing_lessons,
+                    "comments_enabled": True,
+                }]
+                changed = True
+            else:
+                for st in sec["sub_topics"]:
+                    st.setdefault("comments_enabled", True)
+        if changed:
+            await db.courses.update_one({"_id": c["_id"]}, {"$set": {"sections": c["sections"]}})
+            logger.info(f"Backfilled sub_topics for course {c.get('title', c['_id'])}")
     await seed()
     logger.info("Startup complete: indexes ensured, seed data checked")
 
