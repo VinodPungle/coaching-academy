@@ -347,9 +347,7 @@ async def admin_edit_payment(payment_id: str, body: PaymentEditBody, user: dict 
     course = await db.courses.find_one({"_id": payment["course_id"]})
     fee = float((course or {}).get("price", 0) or 0)
     other_paid = await _total_paid(payment["student_id"], payment["course_id"], exclude_id=payment_id)
-    if fee > 0 and (other_paid + body.amount) > fee:
-        remaining = max(fee - other_paid, 0)
-        raise HTTPException(status_code=400, detail=f"Amount exceeds outstanding balance. Remaining: ₹{remaining:.2f}")
+    _assert_amount_within_outstanding(body.amount, fee, other_paid)
     update = {"amount": float(body.amount)}
     if body.notes is not None:
         update["notes"] = body.notes.strip()
