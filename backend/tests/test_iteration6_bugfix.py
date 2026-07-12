@@ -55,13 +55,20 @@ def new_student_token(admin_token):
 
 
 def _pick_teacher_course_with_batch(teacher_token):
-    r = requests.get(f"{API}/teacher/courses", headers=_h(teacher_token), timeout=15)
-    assert r.status_code == 200
-    for c in r.json():
-        b = requests.get(f"{API}/courses/{c['id']}/batches", headers=_h(teacher_token), timeout=15).json()
-        if b:
-            return c, b
-    return None, []
+    """Create a fresh hermetic course + batch so parallel test runs never collide with
+    other tests that create/delete courses. Returns (course, [batch]) — caller is responsible
+    for teardown via requests.delete on the course id."""
+    course = requests.post(
+        f"{API}/courses", headers=_h(teacher_token),
+        json={"title": f"TEST_iter6_pick_{uuid.uuid4().hex[:6]}", "subject": "Physics", "description": "d", "price": 0, "is_free": True},
+        timeout=15,
+    ).json()
+    batch = requests.post(
+        f"{API}/courses/{course['id']}/batches", headers=_h(teacher_token),
+        json={"name": "B1", "schedule": "MWF", "capacity": 100},
+        timeout=15,
+    ).json()
+    return course, [batch]
 
 
 def _enrol_in_demo(admin_token, student_token, course_id):
@@ -76,43 +83,43 @@ def _enrol_in_demo(admin_token, student_token, course_id):
 # ---------- 1. Move to self-paced from batched ----------
 def test_move_from_batch_to_self_paced_returns_200(teacher_token, admin_token, new_student_token):
     course, batches = _pick_teacher_course_with_batch(teacher_token)
-    if not course:
-        pytest.skip("No teacher course with a batch available")
     student_tok, _ = new_student_token
     # Fetch student id via /auth/me
     me = requests.get(f"{API}/auth/me", headers=_h(student_tok), timeout=15).json()
     student_id = me["id"]
+    try:
+        # Enrol this fresh student in the course (demo mode toggle)
+        enrol = _enrol_in_demo(admin_token, student_tok, course["id"])
+        assert enrol.status_code in (200, 201), enrol.text
 
-    # Enrol this fresh student in the course (demo mode toggle)
-    enrol = _enrol_in_demo(admin_token, student_tok, course["id"])
-    assert enrol.status_code in (200, 201), enrol.text
+        # Move to first batch
+        r1 = requests.put(
+            f"{API}/courses/{course['id']}/students/{student_id}/batch",
+            headers=_h(teacher_token),
+            json={"batch_id": batches[0]["id"]},
+            timeout=15,
+        )
+        assert r1.status_code == 200, r1.text
+        assert r1.json().get("batch_id") == batches[0]["id"]
 
-    # Move to first batch
-    r1 = requests.put(
-        f"{API}/courses/{course['id']}/students/{student_id}/batch",
-        headers=_h(teacher_token),
-        json={"batch_id": batches[0]["id"]},
-        timeout=15,
-    )
-    assert r1.status_code == 200, r1.text
-    assert r1.json().get("batch_id") == batches[0]["id"]
+        # Move back to self-paced (batch_id=null) — this is the fixed path
+        r2 = requests.put(
+            f"{API}/courses/{course['id']}/students/{student_id}/batch",
+            headers=_h(teacher_token),
+            json={"batch_id": None},
+            timeout=15,
+        )
+        assert r2.status_code == 200, f"Self-paced move failed: {r2.status_code} {r2.text}"
+        assert r2.json().get("batch_id") is None
 
-    # Move back to self-paced (batch_id=null) — this is the fixed path
-    r2 = requests.put(
-        f"{API}/courses/{course['id']}/students/{student_id}/batch",
-        headers=_h(teacher_token),
-        json={"batch_id": None},
-        timeout=15,
-    )
-    assert r2.status_code == 200, f"Self-paced move failed: {r2.status_code} {r2.text}"
-    assert r2.json().get("batch_id") is None
-
-    # Verify persistence
-    students = requests.get(f"{API}/courses/{course['id']}/students", headers=_h(teacher_token), timeout=15).json()
-    row = next((s for s in students if s["id"] == student_id), None)
-    assert row is not None, "enrolled student not returned"
-    assert row["batch_id"] in (None, "")
-    assert row.get("batch_name") in (None, "")
+        # Verify persistence
+        students = requests.get(f"{API}/courses/{course['id']}/students", headers=_h(teacher_token), timeout=15).json()
+        row = next((s for s in students if s["id"] == student_id), None)
+        assert row is not None, "enrolled student not returned"
+        assert row["batch_id"] in (None, "")
+        assert row.get("batch_name") in (None, "")
+    finally:
+        requests.delete(f"{API}/courses/{course['id']}", headers=_h(teacher_token), timeout=15)
 
 
 # ---------- 2. Move directly to self-paced when student is already self-paced ----------
@@ -120,34 +127,22 @@ def test_move_self_paced_to_self_paced_is_idempotent(teacher_token, admin_token,
     """Explicit UnboundLocalError guard — if `batch` variable was referenced when
     body.batch_id was None, this call would 500. It must return 200."""
     course, batches = _pick_teacher_course_with_batch(teacher_token)
-    if not course:
-        pytest.skip("No teacher course with a batch available")
     student_tok, _ = new_student_token
     me = requests.get(f"{API}/auth/me", headers=_h(student_tok), timeout=15).json()
     student_id = me["id"]
-
-    # Already enrolled from previous test — otherwise enrol
-    students = requests.get(f"{API}/courses/{course['id']}/students", headers=_h(teacher_token), timeout=15).json()
-    if not any(s["id"] == student_id for s in students):
+    try:
         _enrol_in_demo(admin_token, student_tok, course["id"])
-
-    # Ensure the student is currently self-paced
-    requests.put(
-        f"{API}/courses/{course['id']}/students/{student_id}/batch",
-        headers=_h(teacher_token),
-        json={"batch_id": None},
-        timeout=15,
-    )
-
-    # Fire self-paced -> self-paced again (this is what triggered UnboundLocalError before)
-    r = requests.put(
-        f"{API}/courses/{course['id']}/students/{student_id}/batch",
-        headers=_h(teacher_token),
-        json={"batch_id": None},
-        timeout=15,
-    )
-    assert r.status_code == 200, f"Idempotent self-paced move failed: {r.status_code} {r.text}"
-    assert r.json().get("batch_id") is None
+        # Fire self-paced -> self-paced (this is what triggered UnboundLocalError before)
+        r = requests.put(
+            f"{API}/courses/{course['id']}/students/{student_id}/batch",
+            headers=_h(teacher_token),
+            json={"batch_id": None},
+            timeout=15,
+        )
+        assert r.status_code == 200, f"Idempotent self-paced move failed: {r.status_code} {r.text}"
+        assert r.json().get("batch_id") is None
+    finally:
+        requests.delete(f"{API}/courses/{course['id']}", headers=_h(teacher_token), timeout=15)
 
 
 # ---------- 3. Settings/public still exposes razorpay disabled so banner path renders ----------

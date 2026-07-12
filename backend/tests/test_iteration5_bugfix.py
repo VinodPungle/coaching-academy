@@ -164,30 +164,35 @@ def test_teacher_can_move_student_batch(teacher_token, student_token, admin_toke
 
 
 def test_move_batch_invalid_returns_error(teacher_token):
-    r = requests.get(f"{API}/teacher/courses", headers=_h(teacher_token), timeout=15)
-    courses = r.json()
-    if not courses:
-        pytest.skip("No teacher courses")
-    course = courses[0]
-    # Wrong batch id
-    r_bad = requests.put(
-        f"{API}/courses/{course['id']}/students/non-existent-student/batch",
-        headers=_h(teacher_token),
-        json={"batch_id": "non-existent-batch"},
+    """Hermetic: create a throwaway TEST_ course so parallel runs don't collide with tests that delete courses."""
+    course = requests.post(
+        f"{API}/courses", headers=_h(teacher_token),
+        json={"title": f"TEST_iter5_movebad_{uuid.uuid4().hex[:6]}", "subject": "Physics", "description": "d", "price": 0, "is_free": True},
         timeout=15,
-    )
-    assert r_bad.status_code in (404, 400)
+    ).json()
+    try:
+        r_bad = requests.put(
+            f"{API}/courses/{course['id']}/students/non-existent-student/batch",
+            headers=_h(teacher_token),
+            json={"batch_id": "non-existent-batch"},
+            timeout=15,
+        )
+        assert r_bad.status_code in (404, 400)
+    finally:
+        requests.delete(f"{API}/courses/{course['id']}", headers=_h(teacher_token), timeout=15)
 
 
 # ---------------- 5. Admin BCC on enrolment notifications ----------------
-def test_enrolment_triggers_admin_bcc_email(admin_token, student_token):
+def test_enrolment_triggers_admin_bcc_email(admin_token, student_token, teacher_token):
     """After enrolling in a course, backend should attempt two email sends
-    (one to student, one to ADMIN_NOTIFY_EMAIL with [Admin] prefix — demo mode logs)."""
-    r = requests.get(f"{API}/courses", timeout=15)
-    courses = r.json()
-    if not courses:
-        pytest.skip("No courses available")
-    course = courses[0]
+    (one to student, one to ADMIN_NOTIFY_EMAIL with [Admin] prefix — demo mode logs).
+    Hermetic: creates its own TEST_ course to avoid shared-state pollution with other tests."""
+    # Create a fresh throwaway paid course (portal will be in demo mode so enrol still succeeds)
+    course = requests.post(
+        f"{API}/courses", headers=_h(teacher_token),
+        json={"title": f"TEST_iter5_bcc_{uuid.uuid4().hex[:6]}", "subject": "Physics", "description": "d", "price": 100, "is_free": False},
+        timeout=15,
+    ).json()
 
     # Create a fresh student
     unique = f"TEST_bcc_{uuid.uuid4().hex[:8]}"
@@ -197,6 +202,7 @@ def test_enrolment_triggers_admin_bcc_email(admin_token, student_token):
         timeout=15,
     )
     if reg.status_code not in (200, 201):
+        requests.delete(f"{API}/courses/{course['id']}", headers=_h(teacher_token), timeout=15)
         pytest.skip(f"register failed: {reg.text}")
     new_tok = reg.json().get("access_token") or _login({"email": f"{unique}@example.com", "password": "Test@123"})
 
@@ -211,6 +217,7 @@ def test_enrolment_triggers_admin_bcc_email(admin_token, student_token):
         )
     finally:
         requests.put(f"{API}/admin/settings", headers=_h(admin_token), json={"portal_mode": "live"}, timeout=15)
+        requests.delete(f"{API}/courses/{course['id']}", headers=_h(teacher_token), timeout=15)
 
     assert enrol.status_code == 200, f"enrol failed: {enrol.text}"
 

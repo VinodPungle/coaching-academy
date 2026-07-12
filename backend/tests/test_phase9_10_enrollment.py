@@ -26,11 +26,10 @@ def _cleanup_user(email):
 
 def test_teacher_moves_student_between_batches_and_selfpaced():
     tt = _login(os.getenv("TEST_TEACHER_EMAIL", "teacher@rgpacademy.com"), os.getenv("TEST_TEACHER_PASSWORD", "Teacher@123"))
-    # ensure demo mode so student can enrol freely (paid course)
     admin = _login(os.getenv("TEST_ADMIN_EMAIL", "admin@rgpacademy.com"), os.getenv("TEST_ADMIN_PASSWORD", "Admin@123"))
-    requests.put(f"{API}/admin/settings", headers=_hdr(admin), json={"portal_mode": "demo"})
+    # Use a FREE course so the test doesn't depend on portal_mode (avoids parallel race with other tests toggling mode).
     course = requests.post(f"{API}/courses", headers=_hdr(tt), json={
-        "title": f"TEST_P9 {uuid.uuid4().hex[:8]}", "subject": "Physics", "description": "d", "price": 1000,
+        "title": f"TEST_P9 {uuid.uuid4().hex[:8]}", "subject": "Physics", "description": "d", "price": 0, "is_free": True,
     }).json()
     b1 = requests.post(f"{API}/courses/{course['id']}/batches", headers=_hdr(tt), json={"name": "Morning", "schedule": "M-F 7am", "capacity": 10}).json()
     b2 = requests.post(f"{API}/courses/{course['id']}/batches", headers=_hdr(tt), json={"name": "Evening", "schedule": "M-F 6pm", "capacity": 10}).json()
@@ -54,7 +53,6 @@ def test_teacher_moves_student_between_batches_and_selfpaced():
         row = next(s for s in students if s["id"] == sid)
         assert row["batch_id"] is None
     finally:
-        requests.put(f"{API}/admin/settings", headers=_hdr(admin), json={"portal_mode": "live"})
         requests.delete(f"{API}/courses/{course['id']}", headers=_hdr(tt))
         _cleanup_user(st_email)
 
