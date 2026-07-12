@@ -24,8 +24,8 @@ async def seed():
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
 
-    teacher_email = "teacher@rgpacademy.com"
-    student_email = "student@rgpacademy.com"
+    teacher_email = "teacher@bioexamprep.com"
+    student_email = "student@bioexamprep.com"
 
     teacher = await db.users.find_one({"email": teacher_email})
     if not teacher:

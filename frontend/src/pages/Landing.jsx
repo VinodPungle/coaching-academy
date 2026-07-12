@@ -1,6 +1,11 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import { GraduationCap, Radio, FileQuestion, BarChart3, BookOpen, Award, ArrowRight, Users } from "lucide-react";
-import { ACADEMY_NAME } from "@/lib/config";
+import {
+  GraduationCap, Radio, FileQuestion, BarChart3, BookOpen, Award,
+  ArrowRight, Users, Mail, Phone, Globe, Send, CheckCircle2,
+} from "lucide-react";
+import { ACADEMY_NAME, CONTACT_EMAIL, CONTACT_PHONE, CONTACT_WEBSITE } from "@/lib/config";
+import { api, formatApiError } from "@/lib/api";
 
 const FEATURES = [
   { icon: Radio, title: "Live Classes", desc: "Interactive live sessions with experienced faculty, auto-recorded for revision." },
@@ -13,6 +18,122 @@ const FEATURES = [
 
 const SUBJECTS = ["Physics", "Chemistry", "Mathematics", "Biotechnology", "Economics", "Geology"];
 
+function EnquiryForm() {
+  const [form, setForm] = useState({ name: "", email: "", phone: "", message: "", website: "" });
+  const [status, setStatus] = useState({ state: "idle", message: "" }); // idle | submitting | success | error
+  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setStatus({ state: "submitting", message: "" });
+    try {
+      const { data } = await api.post("/enquiries", form);
+      setStatus({ state: "success", message: data?.message || "Thank you. We'll get back to you shortly." });
+      setForm({ name: "", email: "", phone: "", message: "", website: "" });
+    } catch (err) {
+      setStatus({ state: "error", message: formatApiError(err) });
+    }
+  };
+
+  if (status.state === "success") {
+    return (
+      <div data-testid="enquiry-success" className="border border-emerald-200 bg-emerald-50 p-8">
+        <CheckCircle2 className="w-8 h-8 text-emerald-600" strokeWidth={1.5} />
+        <h3 className="font-heading font-bold text-lg mt-3 text-emerald-900">Enquiry received</h3>
+        <p className="text-sm text-emerald-800 mt-2">{status.message}</p>
+        <button
+          type="button"
+          data-testid="enquiry-reset"
+          onClick={() => setStatus({ state: "idle", message: "" })}
+          className="mt-6 text-sm font-semibold text-emerald-800 underline hover:no-underline"
+        >
+          Send another enquiry
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-4" data-testid="enquiry-form">
+      {/* Honeypot — hidden from real users */}
+      <input
+        type="text"
+        name="website"
+        tabIndex="-1"
+        autoComplete="off"
+        value={form.website}
+        onChange={set("website")}
+        className="hidden"
+        aria-hidden="true"
+      />
+      <div className="grid sm:grid-cols-2 gap-4">
+        <div>
+          <label className="text-xs uppercase tracking-[0.2em] font-semibold text-zinc-500">Full name</label>
+          <input
+            data-testid="enquiry-name-input"
+            required
+            minLength={2}
+            value={form.name}
+            onChange={set("name")}
+            className="mt-1.5 w-full border border-zinc-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-700"
+            placeholder="Your name"
+          />
+        </div>
+        <div>
+          <label className="text-xs uppercase tracking-[0.2em] font-semibold text-zinc-500">Phone</label>
+          <input
+            data-testid="enquiry-phone-input"
+            type="tel"
+            required
+            value={form.phone}
+            onChange={set("phone")}
+            className="mt-1.5 w-full border border-zinc-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-700"
+            placeholder="+91 98765 43210"
+          />
+        </div>
+      </div>
+      <div>
+        <label className="text-xs uppercase tracking-[0.2em] font-semibold text-zinc-500">Email</label>
+        <input
+          data-testid="enquiry-email-input"
+          type="email"
+          required
+          value={form.email}
+          onChange={set("email")}
+          className="mt-1.5 w-full border border-zinc-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-700"
+          placeholder="you@example.com"
+        />
+      </div>
+      <div>
+        <label className="text-xs uppercase tracking-[0.2em] font-semibold text-zinc-500">Message</label>
+        <textarea
+          data-testid="enquiry-message-input"
+          required
+          minLength={10}
+          rows={5}
+          value={form.message}
+          onChange={set("message")}
+          className="mt-1.5 w-full border border-zinc-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-700 resize-none"
+          placeholder="Tell us which exam you're preparing for, and how we can help."
+        />
+      </div>
+      {status.state === "error" && (
+        <p data-testid="enquiry-error" className="text-sm text-red-600 border border-red-200 bg-red-50 px-3 py-2">
+          {status.message}
+        </p>
+      )}
+      <button
+        data-testid="enquiry-submit-button"
+        type="submit"
+        disabled={status.state === "submitting"}
+        className="inline-flex items-center gap-2 px-6 py-3 bg-blue-700 text-white font-semibold hover:bg-blue-900 transition-colors disabled:opacity-50"
+      >
+        {status.state === "submitting" ? "Sending…" : "Send enquiry"} <Send className="w-4 h-4" />
+      </button>
+    </form>
+  );
+}
+
 export default function Landing() {
   return (
     <div className="min-h-screen bg-white text-zinc-950">
@@ -23,6 +144,9 @@ export default function Landing() {
             <span className="font-heading font-black tracking-tight text-xl">{ACADEMY_NAME}</span>
           </div>
           <div className="flex items-center gap-3">
+            <a href="#contact" data-testid="header-contact-link" className="hidden sm:inline text-sm font-semibold text-zinc-600 hover:text-zinc-950 px-2 py-2 transition-colors">
+              Contact
+            </a>
             <Link to="/auth?mode=login" data-testid="header-login-link" className="px-4 py-2 text-sm font-semibold border border-zinc-300 hover:bg-zinc-100 transition-colors">
               Log in
             </Link>
@@ -40,14 +164,14 @@ export default function Landing() {
             Crack Exams with the most experienced faculties.
           </h1>
           <p className="mt-6 text-base md:text-lg text-zinc-500 leading-relaxed max-w-lg" data-testid="hero-subheading">
-            Live classes, structured courses, mock tests and personal mentorship — everything you need to crack any entrance exam, including IIT.
+            Live classes, structured courses, mock tests and personal mentorship for CSIR-NET, GATE, IIT-JAM, and other Life Sciences entrance exams.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link to="/auth?mode=register" data-testid="hero-cta-student" className="inline-flex items-center gap-2 px-6 py-3 bg-blue-700 text-white font-semibold hover:bg-blue-900 transition-colors">
               Start learning free <ArrowRight className="w-4 h-4" />
             </Link>
             <Link to="/auth?mode=register&role=teacher" data-testid="hero-cta-teacher" className="inline-flex items-center gap-2 px-6 py-3 border border-zinc-300 font-semibold hover:bg-zinc-100 transition-colors">
-              I'm a teacher
+              I&apos;m a teacher
             </Link>
           </div>
           <div className="mt-10 flex gap-8">
@@ -82,7 +206,7 @@ export default function Landing() {
 
       <section className="max-w-6xl mx-auto px-4 md:px-8 py-16 md:py-24">
         <h2 className="font-heading text-2xl sm:text-3xl lg:text-4xl tracking-tight font-bold max-w-xl">
-          Everything a serious aspirant needs. Nothing they don't.
+          Everything a serious aspirant needs. Nothing they don&apos;t.
         </h2>
         <div className="mt-12 grid sm:grid-cols-2 lg:grid-cols-3 gap-px bg-zinc-200 border border-zinc-200">
           {FEATURES.map(({ icon: Icon, title, desc }) => (
@@ -92,6 +216,56 @@ export default function Landing() {
               <p className="text-sm text-zinc-500 leading-relaxed mt-2">{desc}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      <section id="contact" className="border-t border-zinc-200 bg-zinc-50 scroll-mt-20">
+        <div className="max-w-6xl mx-auto px-4 md:px-8 py-16 md:py-24 grid md:grid-cols-2 gap-12">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] font-semibold text-blue-700 mb-4">Get in touch</p>
+            <h2 className="font-heading text-2xl sm:text-3xl lg:text-4xl tracking-tight font-bold">
+              Have a question? We&apos;d love to hear from you.
+            </h2>
+            <p className="text-base text-zinc-500 mt-4 max-w-md">
+              Reach out about courses, batches, or personalised mentorship. Our team usually replies within one business day.
+            </p>
+            <div className="mt-10 space-y-5" data-testid="contact-details">
+              <a href={`mailto:${CONTACT_EMAIL}`} data-testid="contact-email" className="flex items-start gap-4 group">
+                <div className="border border-zinc-300 p-3 group-hover:border-blue-700 transition-colors">
+                  <Mail className="w-5 h-5 text-blue-700" strokeWidth={1.5} />
+                </div>
+                <div>
+                  <div className="text-xs uppercase tracking-[0.15em] text-zinc-500 font-semibold">Email</div>
+                  <div className="text-sm font-semibold text-zinc-950 mt-1 group-hover:underline">{CONTACT_EMAIL}</div>
+                </div>
+              </a>
+              <a href={`tel:${CONTACT_PHONE.replace(/\s+/g, "")}`} data-testid="contact-phone" className="flex items-start gap-4 group">
+                <div className="border border-zinc-300 p-3 group-hover:border-blue-700 transition-colors">
+                  <Phone className="w-5 h-5 text-blue-700" strokeWidth={1.5} />
+                </div>
+                <div>
+                  <div className="text-xs uppercase tracking-[0.15em] text-zinc-500 font-semibold">Phone</div>
+                  <div className="text-sm font-semibold text-zinc-950 mt-1 group-hover:underline">{CONTACT_PHONE}</div>
+                </div>
+              </a>
+              <a href={`https://${CONTACT_WEBSITE}`} target="_blank" rel="noreferrer" data-testid="contact-website" className="flex items-start gap-4 group">
+                <div className="border border-zinc-300 p-3 group-hover:border-blue-700 transition-colors">
+                  <Globe className="w-5 h-5 text-blue-700" strokeWidth={1.5} />
+                </div>
+                <div>
+                  <div className="text-xs uppercase tracking-[0.15em] text-zinc-500 font-semibold">Website</div>
+                  <div className="text-sm font-semibold text-zinc-950 mt-1 group-hover:underline">{CONTACT_WEBSITE}</div>
+                </div>
+              </a>
+            </div>
+          </div>
+          <div className="bg-white border border-zinc-200 p-6 md:p-8">
+            <h3 className="font-heading text-xl font-bold">Send us an enquiry</h3>
+            <p className="text-sm text-zinc-500 mt-1">Fill in your details and we&apos;ll reach out to you shortly.</p>
+            <div className="mt-6">
+              <EnquiryForm />
+            </div>
+          </div>
         </div>
       </section>
 
@@ -110,11 +284,6 @@ export default function Landing() {
       <footer className="border-t border-zinc-200">
         <div className="max-w-6xl mx-auto px-4 md:px-8 py-8 text-sm text-zinc-500 flex flex-wrap gap-4 justify-between">
           <span>© 2026 {ACADEMY_NAME}</span>
-          <div className="flex gap-5">
-            <a href="/docs/user-manual.html" target="_blank" rel="noreferrer" data-testid="footer-user-manual" className="hover:text-zinc-950 hover:underline">User Manual</a>
-            <a href="/docs/design-architecture.html" target="_blank" rel="noreferrer" data-testid="footer-architecture-doc" className="hover:text-zinc-950 hover:underline">Architecture</a>
-            <a href="/docs/developer-guide.html" target="_blank" rel="noreferrer" data-testid="footer-developer-guide" className="hover:text-zinc-950 hover:underline">Developer Guide</a>
-          </div>
           <span>Built for entrance exam aspirants</span>
         </div>
       </footer>

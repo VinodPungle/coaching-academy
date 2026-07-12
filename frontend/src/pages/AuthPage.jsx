@@ -149,8 +149,8 @@ export default function AuthPage() {
             </p>
             <div className="mt-8 border border-zinc-200 bg-zinc-50 p-4 text-xs text-zinc-500 space-y-1">
               <p className="font-semibold uppercase tracking-[0.15em]">Demo accounts</p>
-              <p>Student: student@rgpacademy.com / Student@123</p>
-              <p>Teacher: teacher@rgpacademy.com / Teacher@123</p>
+              <p>Student: student@bioexamprep.com / Student@123</p>
+              <p>Teacher: teacher@bioexamprep.com / Teacher@123</p>
             </div>
           </div>
         </div>
@@ -166,7 +166,7 @@ export default function AuthPage() {
           <p className="font-heading text-2xl font-bold leading-snug">
             "The mock tests felt exactly like the real exam. I walked in with zero surprises."
           </p>
-          <p className="mt-3 text-sm text-zinc-300">— Top ranker, Rohini's Academy</p>
+          <p className="mt-3 text-sm text-zinc-300">— Top ranker, {ACADEMY_NAME}</p>
         </div>
       </div>
     </div>

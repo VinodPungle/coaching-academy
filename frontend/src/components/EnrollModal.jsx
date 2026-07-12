@@ -69,7 +69,7 @@ export default function EnrollModal({ course, batches: batchesProp, onClose, onS
         amount: order.amount,
         currency: order.currency,
         order_id: order.order_id,
-        name: "Rohini's Academy",
+        name: "BioExamPrep",
         description: course.title,
         prefill: order.prefill,
         theme: { color: "#1D4ED8" },

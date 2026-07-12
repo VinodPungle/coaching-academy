@@ -171,4 +171,19 @@ Delivered in 11 phases with test coverage between each phase (41 backend tests +
 - Admin nav: added "Teachers" and "Top Performers" links.
 
 ## Notes
-- Credentials in /app/memory/test_credentials.md; all seeded users now use @rgpacademy.com.
+- Credentials in /app/memory/test_credentials.md; all seeded users now use @bioexamprep.com.
+
+## Phase 12 — Rebrand to BioExamPrep, DB Purge, Enquiry Form (Feb 2026)
+- Rebranded to **BioExamPrep** across backend/.env (ACADEMY_NAME, ADMIN_EMAIL), frontend/.env (REACT_APP_ACADEMY_NAME), config.js, notify.py, seed.py, EnrollModal (Razorpay display name), AuthPage (demo creds text, testimonial), Landing page (header, footer), index.html title.
+- Email domain migration: legacy `@jamacademy.com` + `@rgpacademy.com` → `@bioexamprep.com` (idempotent startup migration in server.py; collision-safe).
+- One-time non-demo purge (server.py startup, guarded by db.system_flags.purge_non_demo_v1): kept only admin@/teacher@/student@bioexamprep.com; cascaded delete of orphan courses, tests, assignments, live classes, announcements, enrollments, attempts, submissions, notifications, certificates, payments, batches.
+- Landing hero copy updated for CSIR-NET, GATE, IIT-JAM, Life Sciences positioning.
+- New Contact section on landing page with Email (contact@bioexamprep.com), Phone (+91 9403888372), Website (bioexamprep.com).
+- New Enquiry form + backend endpoint POST /api/enquiries:
+  - Fields: name, email, phone, message + hidden honeypot (`website`)
+  - Validation: pydantic EmailStr, regex phone check, min-length name/message
+  - Anti-spam: honeypot silent-accept, IP rate limit 3/hour (in-memory)
+  - Storage: db.enquiries + fire-and-forget Resend email to ADMIN_NOTIFY_EMAIL (contact@bioexamprep.com)
+  - New router: /app/backend/routers/enquiries.py
+- Footer cleanup on landing page: removed User Manual, Architecture, Developer Guide links.
+- Deployment: user requested "Deploy at the end. No testing required." Pending deployment_agent run.

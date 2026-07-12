@@ -7,13 +7,14 @@ load_dotenv(ROOT_DIR / '.env')
 import os
 import uuid
 import logging
+from datetime import datetime, timezone
 from fastapi import FastAPI, APIRouter
 from starlette.middleware.cors import CORSMiddleware
 
 from database import db, client
 from seed import seed
 from notify import ACADEMY_NAME
-from routers import auth, courses, tests, live_classes, assignments, announcements, dashboard, payments, batches, files, certificates, notifications, admin, comments
+from routers import auth, courses, tests, live_classes, assignments, announcements, dashboard, payments, batches, files, certificates, notifications, admin, comments, enquiries
 
 app = FastAPI(title=f"{ACADEMY_NAME} LMS")
 
@@ -39,6 +40,7 @@ api_router.include_router(certificates.router)
 api_router.include_router(notifications.router)
 api_router.include_router(admin.router)
 api_router.include_router(comments.router)
+api_router.include_router(enquiries.router)
 
 app.include_router(api_router)
 
@@ -61,11 +63,11 @@ async def startup():
     await db.test_attempts.create_index([("test_id", 1), ("student_id", 1)], unique=True)
     await db.password_reset_tokens.create_index("expires_at", expireAfterSeconds=0)
     await db.notifications.create_index([("user_id", 1), ("created_at", -1)])
-    # One-time migration: rename @jamacademy.com emails to @rgpacademy.com (passwords unchanged)
-    async for u in db.users.find({"email": {"$regex": "@jamacademy\\.com$", "$options": "i"}}):
-        new_email = u["email"].split("@")[0] + "@rgpacademy.com"
+    # One-time email domain migration: @jamacademy.com and @rgpacademy.com -> @bioexamprep.com
+    async for u in db.users.find({"email": {"$regex": "@(jamacademy|rgpacademy)\\.com$", "$options": "i"}}):
+        new_email = u["email"].split("@")[0] + "@bioexamprep.com"
         existing = await db.users.find_one({"email": new_email})
-        if existing:
+        if existing and existing["_id"] != u["_id"]:
             # Duplicate collision: keep whichever has real content (courses/tests/enrollments/attempts).
             existing_content = (
                 await db.courses.count_documents({"teacher_id": existing["_id"]})
@@ -84,7 +86,6 @@ async def startup():
                 await db.users.update_one({"_id": u["_id"]}, {"$set": {"email": new_email}})
                 logger.info(f"Migrated user email {u['email']} -> {new_email} (removed empty duplicate)")
             elif old_content == 0:
-                # old is empty; delete it silently
                 await db.users.delete_one({"_id": u["_id"]})
                 logger.info(f"Removed empty duplicate {u['email']} (kept {new_email})")
             else:
@@ -92,6 +93,44 @@ async def startup():
         else:
             await db.users.update_one({"_id": u["_id"]}, {"$set": {"email": new_email}})
             logger.info(f"Migrated user email {u['email']} -> {new_email}")
+
+    # One-time purge of non-demo accounts (guarded by system_flags to prevent re-runs)
+    DEMO_EMAILS = {"admin@bioexamprep.com", "teacher@bioexamprep.com", "student@bioexamprep.com"}
+    purge_flag = await db.system_flags.find_one({"_id": "purge_non_demo_v1"})
+    if not purge_flag:
+        victims = await db.users.find({"email": {"$nin": list(DEMO_EMAILS)}}, {"_id": 1, "email": 1, "role": 1}).to_list(10000)
+        victim_ids = [v["_id"] for v in victims]
+        teacher_ids = [v["_id"] for v in victims if v.get("role") == "teacher"]
+        if victim_ids:
+            # Cascade: teacher-owned content
+            their_courses = await db.courses.find({"teacher_id": {"$in": teacher_ids}}, {"_id": 1}).to_list(10000)
+            their_course_ids = [c["_id"] for c in their_courses]
+            their_tests = await db.tests.find({"teacher_id": {"$in": teacher_ids}}, {"_id": 1}).to_list(10000)
+            their_test_ids = [t["_id"] for t in their_tests]
+            their_assignments = await db.assignments.find({"teacher_id": {"$in": teacher_ids}}, {"_id": 1}).to_list(10000)
+            their_assignment_ids = [a["_id"] for a in their_assignments]
+            if their_course_ids:
+                await db.enrollments.delete_many({"course_id": {"$in": their_course_ids}})
+                await db.batches.delete_many({"course_id": {"$in": their_course_ids}})
+            await db.courses.delete_many({"teacher_id": {"$in": teacher_ids}})
+            if their_test_ids:
+                await db.test_attempts.delete_many({"test_id": {"$in": their_test_ids}})
+            await db.tests.delete_many({"teacher_id": {"$in": teacher_ids}})
+            if their_assignment_ids:
+                await db.submissions.delete_many({"assignment_id": {"$in": their_assignment_ids}})
+            await db.assignments.delete_many({"teacher_id": {"$in": teacher_ids}})
+            await db.live_classes.delete_many({"teacher_id": {"$in": teacher_ids}})
+            await db.announcements.delete_many({"teacher_id": {"$in": teacher_ids}})
+            # Cascade: student-owned content
+            await db.enrollments.delete_many({"student_id": {"$in": victim_ids}})
+            await db.test_attempts.delete_many({"student_id": {"$in": victim_ids}})
+            await db.submissions.delete_many({"student_id": {"$in": victim_ids}})
+            await db.notifications.delete_many({"user_id": {"$in": victim_ids}})
+            await db.certificates.delete_many({"student_id": {"$in": victim_ids}})
+            await db.payments.delete_many({"student_id": {"$in": victim_ids}})
+            await db.users.delete_many({"_id": {"$in": victim_ids}})
+            logger.info(f"Purged {len(victim_ids)} non-demo users and cascaded their data")
+        await db.system_flags.insert_one({"_id": "purge_non_demo_v1", "at": datetime.now(timezone.utc).isoformat()})
     # Phase 1: Backfill sub_topics for existing courses (Course → Section → Sub Topic → Lesson)
     async for c in db.courses.find({"sections": {"$exists": True}}):
         changed = False
