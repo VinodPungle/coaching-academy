@@ -481,6 +481,7 @@ async def move_student_batch(course_id: str, student_id: str, body: MoveEnrollme
     enrollment = await db.enrollments.find_one({"course_id": course_id, "student_id": student_id})
     if not enrollment:
         raise HTTPException(status_code=404, detail="Student is not enrolled in this course")
+    target_batch_name = "Self-paced"
     if body.batch_id:
         batch = await db.batches.find_one({"_id": body.batch_id, "course_id": course_id})
         if not batch:
@@ -489,6 +490,7 @@ async def move_student_batch(course_id: str, student_id: str, body: MoveEnrollme
             in_batch = await db.enrollments.count_documents({"batch_id": body.batch_id, "student_id": {"$ne": student_id}})
             if in_batch >= batch["capacity"]:
                 raise HTTPException(status_code=400, detail="Target batch is full")
+        target_batch_name = batch["name"]
     await db.enrollments.update_one(
         {"_id": enrollment["_id"]},
         {"$set": {"batch_id": body.batch_id}},
@@ -496,7 +498,7 @@ async def move_student_batch(course_id: str, student_id: str, body: MoveEnrollme
     await notify(
         [student_id],
         "Batch updated",
-        f"Your batch for {course['title']} has been updated to {batch['name'] if body.batch_id else 'Self-paced'}.",
+        f"Your batch for {course['title']} has been updated to {target_batch_name}.",
         f"/app/courses/{course_id}",
     )
     return {"message": "Student moved", "batch_id": body.batch_id}

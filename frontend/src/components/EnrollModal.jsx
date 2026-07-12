@@ -163,15 +163,13 @@ export default function EnrollModal({ course, batches: batchesProp, onClose, onS
               </div>
 
               <div className="flex gap-px bg-zinc-200 border border-zinc-200">
-                {settings?.razorpay_enabled && (
-                  <button
-                    onClick={() => setTab("razorpay")}
-                    data-testid="tab-razorpay"
-                    className={`flex-1 inline-flex items-center justify-center gap-2 py-2.5 text-sm font-semibold transition-colors ${tab === "razorpay" ? "bg-blue-700 text-white" : "bg-white text-zinc-500 hover:bg-zinc-50"}`}
-                  >
-                    <CreditCard className="w-4 h-4" /> Online Payment
-                  </button>
-                )}
+                <button
+                  onClick={() => setTab("razorpay")}
+                  data-testid="tab-razorpay"
+                  className={`flex-1 inline-flex items-center justify-center gap-2 py-2.5 text-sm font-semibold transition-colors ${tab === "razorpay" ? "bg-blue-700 text-white" : "bg-white text-zinc-500 hover:bg-zinc-50"}`}
+                >
+                  <CreditCard className="w-4 h-4" /> Online Payment
+                </button>
                 <button
                   onClick={() => setTab("upi")}
                   data-testid="tab-upi"
