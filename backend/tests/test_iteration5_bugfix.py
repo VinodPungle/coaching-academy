@@ -190,7 +190,7 @@ def test_enrolment_triggers_admin_bcc_email(admin_token, student_token, teacher_
     # Create a fresh throwaway paid course (portal will be in demo mode so enrol still succeeds)
     course = requests.post(
         f"{API}/courses", headers=_h(teacher_token),
-        json={"title": f"TEST_iter5_bcc_{uuid.uuid4().hex[:6]}", "subject": "Physics", "description": "d", "price": 100, "is_free": False},
+        json={"title": f"TEST_iter5_bcc_{uuid.uuid4().hex[:6]}", "subject": "Physics", "description": "d", "price": 0, "is_free": True},
         timeout=15,
     ).json()
 
@@ -206,8 +206,7 @@ def test_enrolment_triggers_admin_bcc_email(admin_token, student_token, teacher_
         pytest.skip(f"register failed: {reg.text}")
     new_tok = reg.json().get("access_token") or _login({"email": f"{unique}@example.com", "password": "Test@123"})
 
-    # Switch to demo so enrol works for paid courses too
-    requests.put(f"{API}/admin/settings", headers=_h(admin_token), json={"portal_mode": "demo"}, timeout=15)
+    # Free course — enrolment works regardless of portal_mode (no parallel race).
     try:
         enrol = requests.post(
             f"{API}/courses/{course['id']}/enroll",
@@ -216,7 +215,6 @@ def test_enrolment_triggers_admin_bcc_email(admin_token, student_token, teacher_
             timeout=15,
         )
     finally:
-        requests.put(f"{API}/admin/settings", headers=_h(admin_token), json={"portal_mode": "live"}, timeout=15)
         requests.delete(f"{API}/courses/{course['id']}", headers=_h(teacher_token), timeout=15)
 
     assert enrol.status_code == 200, f"enrol failed: {enrol.text}"

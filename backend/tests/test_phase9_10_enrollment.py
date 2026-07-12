@@ -60,9 +60,9 @@ def test_teacher_moves_student_between_batches_and_selfpaced():
 def test_move_to_nonexistent_batch_rejected():
     tt = _login(os.getenv("TEST_TEACHER_EMAIL", "teacher@rgpacademy.com"), os.getenv("TEST_TEACHER_PASSWORD", "Teacher@123"))
     admin = _login(os.getenv("TEST_ADMIN_EMAIL", "admin@rgpacademy.com"), os.getenv("TEST_ADMIN_PASSWORD", "Admin@123"))
-    requests.put(f"{API}/admin/settings", headers=_hdr(admin), json={"portal_mode": "demo"})
+    # Use a FREE course so this test doesn't depend on portal_mode (avoids parallel race with other tests toggling mode).
     course = requests.post(f"{API}/courses", headers=_hdr(tt), json={
-        "title": f"TEST_P9b {uuid.uuid4().hex[:8]}", "subject": "Physics", "description": "d", "price": 100,
+        "title": f"TEST_P9b {uuid.uuid4().hex[:8]}", "subject": "Physics", "description": "d", "price": 0, "is_free": True,
     }).json()
     st_token, st_email = _new_student()
     users = requests.get(f"{API}/admin/users", headers=_hdr(admin)).json()
@@ -72,7 +72,6 @@ def test_move_to_nonexistent_batch_rejected():
         r = requests.put(f"{API}/courses/{course['id']}/students/{sid}/batch", headers=_hdr(tt), json={"batch_id": "does-not-exist"})
         assert r.status_code == 404
     finally:
-        requests.put(f"{API}/admin/settings", headers=_hdr(admin), json={"portal_mode": "live"})
         requests.delete(f"{API}/courses/{course['id']}", headers=_hdr(tt))
         _cleanup_user(st_email)
 

@@ -1,0 +1,34 @@
+{
+  "summary": "Re-verified test-hygiene fixes after iteration_10. Ran `pytest tests/ -n auto` FIVE times consecutively. Result: 4/5 runs GREEN (64/64), 1/5 FLAKED — Run 4 failed on test_iteration5_bugfix.py::test_enrolment_triggers_admin_bcc_email with a NEW race (not portal_mode this time). The portal_mode race identified in iteration_10 is confirmed FIXED (test_move_to_nonexistent_batch_rejected has been stable across all 5 runs). But removing the portal_mode serialization exposed a latent log-tail race in the very same email-BCC test. So the review's claim of '64/64 all clean 3 times' does NOT hold at n=5.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "tests/test_iteration5_bugfix.py::test_enrolment_triggers_admin_bcc_email", "issue": "Flaked 1/5 in parallel. Test asserts student email appears in `open(backend.err.log).read()[-40000:]` after a 3s sleep. Under 16-xdist worker load, log volume during those 3s can push the student email out of the 40KB tail window before it is read. Removing the portal_mode serialization in this iteration means this test now runs fully concurrently with all others, exposing this second race that portal_mode-flipping was inadvertently masking."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/test_reports/pytest/run_1.xml",
+    "/app/test_reports/pytest/run_2.xml",
+    "/app/test_reports/pytest/run_3.xml",
+    "/app/test_reports/pytest/run_4.xml",
+    "/app/test_reports/pytest/run_5.xml"
+  ],
+  "action_items": [
+    "Fix log-tail race in test_iteration5_bugfix.py::test_enrolment_triggers_admin_bcc_email (L225-235). Options: (a) enlarge tail window from `[-40000:]` to `[-500000:]` or read whole file; (b) increase `time.sleep(3)` to sleep(6) AND enlarge window; (c) BEST — grep logs with a subprocess call for the unique student email starting from an offset captured BEFORE the enrolment POST, so log growth cannot roll the marker out.",
+    "Update review-request claims that were inaccurate: (1) portal_mode.demo grep returns 3 sites in 3 DIFFERENT files (test_phase7_payments.py, test_iteration5_bugfix.py L125, test_iteration6_bugfix.py L75) — NOT only in test_phase7_payments.py as the review states. iteration5 & iteration6 still call `/admin/settings` with portal_mode=demo inside try/finally helpers (hermetic but violates the stated invariant). (2) test file count is conftest.py + 11 test_*.py = 12 total files, NOT 10 files (conftest.py + 9 test_*.py) as claimed.",
+    "Consider tagging portal_mode-touching tests with `@pytest.mark.xdist_group('portal_mode')` and running with `--dist=loadgroup` so xdist pins them to a single worker — this would eliminate the entire class of shared-global-state races once and for all."
+  ],
+  "critical_code_review_comments": [
+    "test_iteration5_bugfix.py L225-241: Asserting side effects by tailing supervisor logs is inherently racy under parallel load. Backend log volume is not deterministic under xdist. Prefer a dedicated in-memory notify sink or a /api/admin/notifications endpoint the test can poll deterministically.",
+    "test_iteration5_bugfix.py L125 and test_iteration6_bugfix.py L75 still mutate global admin settings (portal_mode). Even inside try/finally, if the test crashes between put(demo) and put(live), or if another test reads the setting during the window, live state leaks. Prefer per-course free/paid switching (already used elsewhere)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "80% (4/5 parallel runs green, 1 flake)", "frontend": "N/A"},
+  "test_credentials": "Admin: admin@rgpacademy.com/Admin@123, Teacher: teacher@rgpacademy.com/Teacher@123, Student: student@rgpacademy.com/Student@123 — all verified valid (all 64 tests pass in the 4 green runs).",
+  "seed_data_creation": "None — used existing seeded credentials.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "After main agent addresses the log-tail race in test_enrolment_triggers_admin_bcc_email, re-run `cd /app/backend && for i in 1 2 3 4 5 6 7; do pytest tests/ -n auto -q 2>&1 | tail -3; done` — need 7/7 clean (5 was not sufficient this iteration to expose the flake — got it on run 4/5). The portal_mode race identified in iteration_10 IS resolved; test_move_to_nonexistent_batch_rejected stable across all 5 runs.",
+  "rca of the issue": "Run 4 failure: test_enrolment_triggers_admin_bcc_email. Flow: (1) test creates free course, enrols new student, waits 3s, (2) reads last 40KB of /var/log/supervisor/backend.{err,out}.log, (3) asserts student email substring present. Under `pytest -n auto` (16 workers), the 3s window sees log traffic from 63 other tests hitting the backend. Log growth in 3s can exceed 40KB, so by the time the test opens the file and slices [-40000:], the write-position advanced past the email log line, and the tail window contains only newer log lines from unrelated tests. Evidence in failure output: the assertion's log_text slice contained only Rohini-Academy-live-class-notification + 2 HTTP log lines — no trace of the student email OR the enrolment POST that produced it, confirming the log rolled. Fix: capture os.path.getsize() BEFORE the enrolment, then seek() to that offset when reading, or grep the whole file for the unique email marker."
+}
