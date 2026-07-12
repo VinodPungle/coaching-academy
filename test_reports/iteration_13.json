@@ -1,0 +1,43 @@
+{
+  "summary": "Final stability check for iteration 12's hermetic-rewrite fix of test_teacher_can_move_student_batch. Ran `pytest tests/ -n auto` FIVE consecutive times: all 5 runs = 64/64 passed. The previously flaky test passed in 5/5 runs (0 failures). Deployment gate met.",
+  "run_by_run_results": {
+    "run_1": "64/64 passed in 35.02s",
+    "run_2": "64/64 passed in 34.83s",
+    "run_3": "64/64 passed in 34.75s",
+    "run_4": "64/64 passed in 35.20s",
+    "run_5": "64/64 passed in 35.23s"
+  },
+  "target_test_verification": {
+    "test": "tests/test_iteration5_bugfix.py::test_teacher_can_move_student_batch",
+    "result": "PASSED in ALL 5 runs (0 failures). Hermetic rewrite (own TEST_ FREE course + own batch + own registered student, teardown via finally: DELETE course) resolves the ~12% shared-state race from iteration_12.",
+    "code_verified": "L103-160 of test_iteration5_bugfix.py — no longer depends on student_token fixture, no portal_mode toggle, creates and cleans up its own resources."
+  },
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/pytest/iteration_13_run1.xml",
+    "/app/test_reports/pytest/iteration_13_run2.xml",
+    "/app/test_reports/pytest/iteration_13_run3.xml",
+    "/app/test_reports/pytest/iteration_13_run4.xml",
+    "/app/test_reports/pytest/iteration_13_run5.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "The hermetic pattern in test_teacher_can_move_student_batch (unique TEST_ prefix + finally-based DELETE) is now consistent with test_move_batch_invalid_returns_error and is a solid template for future isolation-sensitive tests.",
+    "No portal_mode global toggles remain in this test — good."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (5/5 full-suite runs at 64/64; target test 5/5)"},
+  "test_credentials": "Used seeded credentials: admin@rgpacademy.com/Admin@123, teacher@rgpacademy.com/Teacher@123. Test-created students use TEST_move_<uuid>@example.com pattern.",
+  "seed_data_creation": "Test creates its own TEST_ course, batch, and student (all torn down via finally DELETE).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Deployment gate met: 5 consecutive -n auto runs at 64/64. iteration_12 flake in test_teacher_can_move_student_batch is fully resolved by the hermetic rewrite. No further stability testing needed before deployment."
+}

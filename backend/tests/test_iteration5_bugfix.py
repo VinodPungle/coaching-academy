@@ -100,67 +100,63 @@ def test_razorpay_verify_returns_400_when_not_configured(student_token):
 
 
 # ---------------- 4. Move student batch ----------------
-def test_teacher_can_move_student_batch(teacher_token, student_token, admin_token):
-    # Find a teacher course with at least one batch
-    r = requests.get(f"{API}/teacher/courses", headers=_h(teacher_token), timeout=15)
-    assert r.status_code == 200
-    courses = r.json()
-    assert len(courses) >= 1
-    course = None
-    batches = []
-    for c in courses:
-        b = requests.get(f"{API}/courses/{c['id']}/batches", headers=_h(teacher_token), timeout=15).json()
-        if len(b) >= 1:
-            course = c
-            batches = b
-            break
-    if not course:
-        pytest.skip("No teacher course with a batch — cannot test batch move")
-
-    # Ensure at least one enrolled student — enrol via demo mode if needed
-    students = requests.get(f"{API}/courses/{course['id']}/students", headers=_h(teacher_token), timeout=15).json()
-    if not students:
-        # Try demo-mode enrol using student account
-        # Switch to demo
-        requests.put(f"{API}/admin/settings", headers=_h(admin_token), json={"portal_mode": "demo"}, timeout=15)
-        try:
-            requests.post(f"{API}/courses/{course['id']}/enroll", headers=_h(student_token), json={}, timeout=15)
-        finally:
-            requests.put(f"{API}/admin/settings", headers=_h(admin_token), json={"portal_mode": "live"}, timeout=15)
-        students = requests.get(f"{API}/courses/{course['id']}/students", headers=_h(teacher_token), timeout=15).json()
-    if not students:
-        pytest.skip("Could not create a student enrolment for batch move")
-
-    student = students[0]
-    target_batch = batches[0]["id"]
-
-    # Move to batch 1
-    r_move = requests.put(
-        f"{API}/courses/{course['id']}/students/{student['id']}/batch",
-        headers=_h(teacher_token),
-        json={"batch_id": target_batch},
+def test_teacher_can_move_student_batch(teacher_token, admin_token):
+    """Hermetic: creates its own FREE course + batch + fresh student to avoid parallel-run flakes."""
+    # Fresh course + batch
+    course = requests.post(
+        f"{API}/courses", headers=_h(teacher_token),
+        json={"title": f"TEST_iter5_move_{uuid.uuid4().hex[:6]}", "subject": "Physics", "description": "d", "price": 0, "is_free": True},
+        timeout=15,
+    ).json()
+    batch = requests.post(
+        f"{API}/courses/{course['id']}/batches", headers=_h(teacher_token),
+        json={"name": "B1", "schedule": "MWF", "capacity": 100},
+        timeout=15,
+    ).json()
+    # Fresh student
+    unique = f"TEST_move_{uuid.uuid4().hex[:8]}"
+    reg = requests.post(
+        f"{API}/auth/register",
+        json={"name": unique, "email": f"{unique}@example.com", "password": "Test@123", "role": "student"},
         timeout=15,
     )
-    assert r_move.status_code == 200, r_move.text
-    assert r_move.json().get("batch_id") == target_batch
+    fresh_tok = reg.json().get("access_token")
+    fresh_me = requests.get(f"{API}/auth/me", headers=_h(fresh_tok), timeout=15).json()
+    fresh_id = fresh_me["id"]
 
-    # Verify via GET
-    students2 = requests.get(f"{API}/courses/{course['id']}/students", headers=_h(teacher_token), timeout=15).json()
-    row = next((s for s in students2 if s["id"] == student["id"]), None)
-    assert row is not None
-    assert row["batch_id"] == target_batch
+    try:
+        requests.post(f"{API}/courses/{course['id']}/enroll", headers=_h(fresh_tok), json={}, timeout=15).raise_for_status()
+        target_batch = batch["id"]
 
-    # Move back to self-paced (null)
-    r_back = requests.put(
-        f"{API}/courses/{course['id']}/students/{student['id']}/batch",
-        headers=_h(teacher_token),
-        json={"batch_id": None},
-        timeout=15,
-    )
-    assert r_back.status_code == 200, r_back.text
-    students3 = requests.get(f"{API}/courses/{course['id']}/students", headers=_h(teacher_token), timeout=15).json()
-    row3 = next((s for s in students3 if s["id"] == student["id"]), None)
-    assert row3["batch_id"] in (None, "")
+        # Move to batch 1
+        r_move = requests.put(
+            f"{API}/courses/{course['id']}/students/{fresh_id}/batch",
+            headers=_h(teacher_token),
+            json={"batch_id": target_batch},
+            timeout=15,
+        )
+        assert r_move.status_code == 200, r_move.text
+        assert r_move.json().get("batch_id") == target_batch
+
+        # Verify via GET
+        students2 = requests.get(f"{API}/courses/{course['id']}/students", headers=_h(teacher_token), timeout=15).json()
+        row = next((s for s in students2 if s["id"] == fresh_id), None)
+        assert row is not None
+        assert row["batch_id"] == target_batch
+
+        # Move back to self-paced (null)
+        r_back = requests.put(
+            f"{API}/courses/{course['id']}/students/{fresh_id}/batch",
+            headers=_h(teacher_token),
+            json={"batch_id": None},
+            timeout=15,
+        )
+        assert r_back.status_code == 200, r_back.text
+        students3 = requests.get(f"{API}/courses/{course['id']}/students", headers=_h(teacher_token), timeout=15).json()
+        row3 = next((s for s in students3 if s["id"] == fresh_id), None)
+        assert row3["batch_id"] in (None, "")
+    finally:
+        requests.delete(f"{API}/courses/{course['id']}", headers=_h(teacher_token), timeout=15)
 
 
 def test_move_batch_invalid_returns_error(teacher_token):
