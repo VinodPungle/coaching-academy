@@ -1,0 +1,60 @@
+{
+  "summary": "Ran pytest tests/ -n auto 8 times consecutively (5 requested + 3 extra to characterize a new flake). Result: 7/8 runs were 64/64 clean; 1/8 (run 5) failed with 63/64 on a DIFFERENT test than the one main agent was fixing.",
+  "run_by_run_results": {
+    "run_1": "64/64 passed in 34.67s",
+    "run_2": "64/64 passed in 34.27s",
+    "run_3": "64/64 passed in 34.41s",
+    "run_4": "64/64 passed in 33.97s",
+    "run_5": "63/64 FAILED - test_teacher_can_move_student_batch (line 150)",
+    "run_6": "64/64 passed in 35.60s",
+    "run_7": "64/64 passed in 34.59s",
+    "run_8": "64/64 passed in 34.38s"
+  },
+  "log_tail_fix_verification": {
+    "test": "tests/test_iteration5_bugfix.py::test_enrolment_triggers_admin_bcc_email",
+    "result": "PASSED in ALL 8 runs — main agent's fix (500KB tail window + 12-iteration polling loop) is working correctly. The original log-tail race is resolved."
+  },
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "PUT /api/courses/{cid}/students/{sid}/batch (test-level race)",
+        "issue": "test_teacher_can_move_student_batch flakes ~12% under -n auto (1/8 runs). AssertionError at line 150: `assert row is not None` — the shared student is missing from the students list after a successful batch move. Root cause is shared-state contention across parallel tests, not a product bug."
+      }
+    ]
+  },
+  "rca_of_the_new_flake": {
+    "test": "tests/test_iteration5_bugfix.py::test_teacher_can_move_student_batch",
+    "failing_assertion": "line 150: assert row is not None",
+    "reproduction": "Under `pytest -n auto` (8-worker xdist), the test intermittently (~1/8) fails to find the moved student in the follow-up GET /courses/{cid}/students at line 148.",
+    "root_cause": "The test operates on SEEDED SHARED accounts (student_token/teacher_token fixtures from conftest) and picks students[0] from the first teacher course with a batch. Between the successful PUT at line 138-144 and the verification GET at line 148, another parallel test — most likely test_phase9_10_enrollment.py which enrols/moves/unenrols the same shared student on the same shared course, or a portal_mode toggle from line 125/129 racing with another test — mutates that student's enrollment. This is a test-isolation problem, not a product bug (PUT returned 200 with correct batch_id at line 145).",
+    "evidence": [
+      "test_phase9_10_enrollment.py lines 40-72 enrols/moves shared student on shared courses",
+      "test_iteration6_bugfix.py line 97/107/137 also PUTs .../students/{id}/batch on shared course",
+      "Line 125/129 in the failing test toggles portal_mode globally (demo <-> live), a well-known shared-state hazard that iteration_10 flagged as fixed",
+      "Failure is non-deterministic (1/8), typical of a race window between two API calls (line 138 PUT and line 148 GET)"
+    ],
+    "recommended_mitigation": [
+      "Option A (preferred, hermetic): Rewrite test_teacher_can_move_student_batch to create its own TEST_ course + batch + student via an admin-created TEST_ user, exactly like test_move_batch_invalid_returns_error (line 166 comment: 'Hermetic: create a throwaway TEST_ course so parallel runs don't collide...'). This is the same pattern the file already uses elsewhere.",
+      "Option B (cheaper, weaker): After the PUT succeeds, if the student is missing from students2, retry the GET 2-3 times with 500ms backoff before asserting — masks the race but keeps shared-state coupling.",
+      "Option C: Remove the portal_mode toggle at lines 125/129 by making the enrol path work under the current portal_mode, or serialize this test with a filelock similar to iteration 10's fix."
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_iteration5_bugfix.py", "/app/test_reports/pytest/iteration_12_run5.xml"],
+  "action_items": [
+    "MUST FIX before deployment: Make test_teacher_can_move_student_batch hermetic — create its own TEST_ course/student instead of reusing seeded shared fixtures. Reference the pattern already used in the same file at test_move_batch_invalid_returns_error (line 167 comment).",
+    "The log-tail fix from iteration_11 is confirmed working (8/8 for that specific test); no further action needed on the admin-BCC-email test."
+  ],
+  "critical_code_review_comments": [
+    "test_iteration5_bugfix.py line 125/129: toggling global portal_mode inside a test is a shared-state hazard under -n auto. Even wrapped in try/finally, another parallel test observing portal_mode during the toggle window will see inconsistent state.",
+    "test_iteration5_bugfix.py line 121-134: picking students[0] from a shared course is not isolation-safe. If a parallel test unenrols that student, the subsequent verification GET at line 148 will not find them.",
+    "The polling-loop pattern introduced for the admin-BCC email test at lines 232-244 is a good template — consider applying the same eventual-consistency polling to line 148 as a defense-in-depth measure."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "87.5% (7/8 full-suite runs clean); 100% (8/8) for the specific log-tail test main agent was fixing"},
+  "test_credentials": "Used seeded credentials from test_credentials context: admin@rgpacademy.com/Admin@123, teacher@rgpacademy.com/Teacher@123, student@rgpacademy.com/Student@123",
+  "seed_data_creation": "None — used existing seed data only",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "iteration_11's log-tail fix is fully validated (8/8 passes on the target test). The NEW flake in iteration_12 is a separate shared-state race in test_teacher_can_move_student_batch (line 150) — needs hermetic rewrite before deployment. Do NOT deploy yet."
+}

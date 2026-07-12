@@ -219,28 +219,33 @@ def test_enrolment_triggers_admin_bcc_email(admin_token, student_token, teacher_
 
     assert enrol.status_code == 200, f"enrol failed: {enrol.text}"
 
-    # Give async tasks time to schedule
-    time.sleep(3)
-
+    student_email = f"{unique}@example.com".lower()
     log_paths = [
         "/var/log/supervisor/backend.err.log",
         "/var/log/supervisor/backend.out.log",
     ]
-    log_text = ""
-    for p in log_paths:
-        try:
-            with open(p, "r") as f:
-                log_text += f.read()[-40000:]
-        except FileNotFoundError:
-            pass
 
-    student_email = f"{unique}@example.com".lower()
-    # Look for both email addresses in logs (success or failure lines both include recipient email)
-    assert student_email in log_text.lower(), (
-        f"Expected student email {student_email} in backend logs — not found"
-    )
-    assert "contact@bioexamprep.com" in log_text, (
-        "Expected admin BCC email to contact@bioexamprep.com — not found in backend logs. "
+    # Poll logs for up to 12s with a large tail window — under -n auto load the log
+    # rotates rapidly, so we need both patience and a big buffer.
+    found_student = False
+    found_admin = False
+    for _ in range(12):
+        log_text = ""
+        for p in log_paths:
+            try:
+                with open(p, "r") as f:
+                    log_text += f.read()[-500000:]  # 500KB tail (13x larger than before)
+            except FileNotFoundError:
+                pass
+        found_student = student_email in log_text.lower()
+        found_admin = "contact@bioexamprep.com" in log_text
+        if found_student and found_admin:
+            break
+        time.sleep(1)
+
+    assert found_student, f"Expected student email {student_email} in backend logs — not found within 12s"
+    assert found_admin, (
+        "Expected admin BCC email to contact@bioexamprep.com — not found in backend logs within 12s. "
         "This means notify() cc_admin=True path did NOT fire."
     )
     # [Admin] subject prefix is code-verified in notify.py (line ~113). We cannot check in logs
