@@ -34,7 +34,7 @@ def _create_course_with_lessons(teacher_token, n_lessons=3):
 
 
 def test_first_lesson_no_prev():
-    tt = _login("teacher@rgpacademy.com", "Teacher@123")
+    tt = _login(os.getenv("TEST_TEACHER_EMAIL", "teacher@rgpacademy.com"), os.getenv("TEST_TEACHER_PASSWORD", "Teacher@123"))
     cid, lids = _create_course_with_lessons(tt)
     try:
         r = requests.get(f"{API}/courses/{cid}/lessons/{lids[0]}", headers=_hdr(tt)).json()
@@ -45,7 +45,7 @@ def test_first_lesson_no_prev():
 
 
 def test_final_lesson_no_next():
-    tt = _login("teacher@rgpacademy.com", "Teacher@123")
+    tt = _login(os.getenv("TEST_TEACHER_EMAIL", "teacher@rgpacademy.com"), os.getenv("TEST_TEACHER_PASSWORD", "Teacher@123"))
     cid, lids = _create_course_with_lessons(tt)
     try:
         r = requests.get(f"{API}/courses/{cid}/lessons/{lids[-1]}", headers=_hdr(tt)).json()
@@ -57,7 +57,7 @@ def test_final_lesson_no_next():
 
 def test_lesson_navigation_across_sections_and_sub_topics():
     """Navigation should flow: section1[st1[l0,l1]] → section1[st2[l2]] → section2[st1[l3]] """
-    tt = _login("teacher@rgpacademy.com", "Teacher@123")
+    tt = _login(os.getenv("TEST_TEACHER_EMAIL", "teacher@rgpacademy.com"), os.getenv("TEST_TEACHER_PASSWORD", "Teacher@123"))
     r = requests.post(f"{API}/courses", headers=_hdr(tt), json={
         "title": f"TEST_P3nav {uuid.uuid4().hex[:8]}", "subject": "Physics", "description": "d", "price": 0,
     })
@@ -99,8 +99,8 @@ def test_lesson_navigation_across_sections_and_sub_topics():
 
 
 def test_lesson_page_requires_enrollment_for_student():
-    tt = _login("teacher@rgpacademy.com", "Teacher@123")
-    st = _login("student@rgpacademy.com", "Student@123")
+    tt = _login(os.getenv("TEST_TEACHER_EMAIL", "teacher@rgpacademy.com"), os.getenv("TEST_TEACHER_PASSWORD", "Teacher@123"))
+    st = _login(os.getenv("TEST_STUDENT_EMAIL", "student@rgpacademy.com"), os.getenv("TEST_STUDENT_PASSWORD", "Student@123"))
     cid, lids = _create_course_with_lessons(tt, 1)
     try:
         r = requests.get(f"{API}/courses/{cid}/lessons/{lids[0]}", headers=_hdr(st))
@@ -111,7 +111,7 @@ def test_lesson_page_requires_enrollment_for_student():
 
 def test_single_lesson_first_and_last_at_once():
     """A course with 1 lesson: prev and next both None."""
-    tt = _login("teacher@rgpacademy.com", "Teacher@123")
+    tt = _login(os.getenv("TEST_TEACHER_EMAIL", "teacher@rgpacademy.com"), os.getenv("TEST_TEACHER_PASSWORD", "Teacher@123"))
     cid, lids = _create_course_with_lessons(tt, 1)
     try:
         r = requests.get(f"{API}/courses/{cid}/lessons/{lids[0]}", headers=_hdr(tt)).json()

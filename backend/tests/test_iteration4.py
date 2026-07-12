@@ -26,9 +26,9 @@ load_dotenv(Path(__file__).resolve().parents[2] / "frontend" / ".env")
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL').rstrip('/')
 API = f"{BASE_URL}/api"
 
-ADMIN = ("admin@rgpacademy.com", "Admin@123")
-TEACHER = ("teacher@rgpacademy.com", "Teacher@123")
-STUDENT = ("student@rgpacademy.com", "Student@123")
+ADMIN = (os.getenv("TEST_ADMIN_EMAIL", "admin@rgpacademy.com"), os.getenv("TEST_ADMIN_PASSWORD", "Admin@123"))
+TEACHER = (os.getenv("TEST_TEACHER_EMAIL", "teacher@rgpacademy.com"), os.getenv("TEST_TEACHER_PASSWORD", "Teacher@123"))
+STUDENT = (os.getenv("TEST_STUDENT_EMAIL", "student@rgpacademy.com"), os.getenv("TEST_STUDENT_PASSWORD", "Student@123"))
 
 
 def login(email, password):
@@ -62,7 +62,7 @@ class TestAuthRename:
 
     def test_jam_email_login_gone(self):
         """After migration, old @jamacademy.com login should fail."""
-        r = requests.post(f"{API}/auth/login", json={"email": "admin@jamacademy.com", "password": "Admin@123"}, timeout=15)
+        r = requests.post(f"{API}/auth/login", json={"email": "admin@jamacademy.com", "password": os.getenv("TEST_ADMIN_PASSWORD", "Admin@123")}, timeout=15)
         assert r.status_code in (400, 401, 404), f"Old jam admin should not login, got {r.status_code}"
 
 

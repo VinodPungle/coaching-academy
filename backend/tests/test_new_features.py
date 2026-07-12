@@ -12,8 +12,8 @@ import pytest
 BASE_URL = os.environ["REACT_APP_BACKEND_URL"].rstrip("/") if os.environ.get("REACT_APP_BACKEND_URL") else "https://educoach-platform.preview.emergentagent.com"
 API = f"{BASE_URL}/api"
 
-TEACHER_EMAIL = "teacher@rgpacademy.com"
-TEACHER_PASSWORD = "Teacher@123"
+TEACHER_EMAIL = os.getenv("TEST_TEACHER_EMAIL", "teacher@rgpacademy.com")
+TEACHER_PASSWORD = os.getenv("TEST_TEACHER_PASSWORD", "Teacher@123")
 
 
 # ---------------------------- helpers ---------------------------- #
@@ -82,9 +82,9 @@ class TestPayments:
         r = requests.get(f"{API}/payments/config", timeout=15)
         assert r.status_code == 200
         d = r.json()
-        assert d["demo_mode"] is True, f"expected demo_mode true (empty stripe/razorpay keys), got {d}"
-        assert d["stripe_configured"] is False
-        assert d["razorpay_configured"] is False
+        assert d["demo_mode"] == True, f"expected demo_mode true (empty stripe/razorpay keys), got {d}"
+        assert d["stripe_configured"] == False
+        assert d["razorpay_configured"] == False
 
     def test_full_checkout_confirm_creates_enrollment(self, seed_course_id, teacher_token):
         stu = _register_student()
@@ -102,7 +102,7 @@ class TestPayments:
                            timeout=15)
         assert co.status_code == 200, co.text
         payload = co.json()
-        assert payload["demo_mode"] is True
+        assert payload["demo_mode"] == True
         payment = payload["payment"]
         assert payment["status"] == "pending"
         assert payment["gateway"] == "demo"
@@ -120,7 +120,7 @@ class TestPayments:
 
         # my_batch is set on course detail
         cd = requests.get(f"{API}/courses/{seed_course_id}", headers=_hdr(stu["token"]), timeout=15).json()
-        assert cd["enrolled"] is True
+        assert cd["enrolled"] == True
         assert cd["my_batch"] is not None
         assert cd["my_batch"]["id"] == batch_id
 

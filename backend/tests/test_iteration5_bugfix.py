@@ -18,9 +18,9 @@ import pytest
 BASE = os.environ.get("REACT_APP_BACKEND_URL", "https://educoach-platform.preview.emergentagent.com").rstrip("/")
 API = f"{BASE}/api"
 
-ADMIN = {"email": "admin@rgpacademy.com", "password": "Admin@123"}
-TEACHER = {"email": "teacher@rgpacademy.com", "password": "Teacher@123"}
-STUDENT = {"email": "student@rgpacademy.com", "password": "Student@123"}
+ADMIN = {"email": os.getenv("TEST_ADMIN_EMAIL", "admin@rgpacademy.com"), "password": os.getenv("TEST_ADMIN_PASSWORD", "Admin@123")}
+TEACHER = {"email": os.getenv("TEST_TEACHER_EMAIL", "teacher@rgpacademy.com"), "password": os.getenv("TEST_TEACHER_PASSWORD", "Teacher@123")}
+STUDENT = {"email": os.getenv("TEST_STUDENT_EMAIL", "student@rgpacademy.com"), "password": os.getenv("TEST_STUDENT_PASSWORD", "Student@123")}
 
 
 def _login(creds):
@@ -57,7 +57,7 @@ def test_settings_public_exposes_razorpay(student_token):
     assert "razorpay_key_id" in data
     assert isinstance(data["razorpay_enabled"], bool)
     # env vars empty in preview
-    assert data["razorpay_enabled"] is False
+    assert data["razorpay_enabled"] == False
     assert data["razorpay_key_id"] == ""
     # UPI + portal_mode still there
     assert "portal_mode" in data

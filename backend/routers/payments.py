@@ -65,6 +65,35 @@ class RazorpayOrderBody(BaseModel):
     amount: Optional[float] = None   # if None, uses full remaining balance
 
 
+def _verify_razorpay_signature(order_id: str, payment_id: str, signature: str) -> None:
+    """Validate Razorpay HMAC-SHA256 signature. Raises 400 on mismatch or missing secret."""
+    key_secret = os.environ.get("RAZORPAY_KEY_SECRET", "").strip()
+    if not key_secret:
+        raise HTTPException(status_code=400, detail="Razorpay not configured")
+    expected = hmac.new(
+        key_secret.encode(),
+        f"{order_id}|{payment_id}".encode(),
+        hashlib.sha256,
+    ).hexdigest()
+    if not hmac.compare_digest(expected, signature):
+        raise HTTPException(status_code=400, detail="Invalid payment signature")
+
+
+def _resolve_razorpay_amount(remaining: float, requested: Optional[float]) -> float:
+    """Determine payment amount from remaining balance + optional user override. Raise if invalid."""
+    if remaining <= 0:
+        raise HTTPException(status_code=400, detail="No outstanding balance for this course")
+    amount = float(requested) if requested else remaining
+    if amount <= 0 or amount > remaining:
+        raise HTTPException(status_code=400, detail=f"Amount must be between ₹1 and ₹{remaining:.0f}")
+    return amount
+
+
+def _new_razorpay_receipt(course_id: str, student_id: str) -> str:
+    ts = int(datetime.now(timezone.utc).timestamp())
+    return f"c_{course_id[:8]}_{student_id[:8]}_{ts}"[:40]
+
+
 @router.post("/payments/razorpay/create-order")
 async def create_razorpay_order(body: RazorpayOrderBody, user: dict = Depends(require_role("student"))):
     course = await db.courses.find_one({"_id": body.course_id})
@@ -73,15 +102,10 @@ async def create_razorpay_order(body: RazorpayOrderBody, user: dict = Depends(re
     fee = float(course.get("price", 0) or 0)
     if fee <= 0 or course.get("is_free"):
         raise HTTPException(status_code=400, detail="This course is free — enrol directly")
-    already_paid = await _total_paid(user["id"], body.course_id)
-    remaining = max(fee - already_paid, 0)
-    if remaining <= 0:
-        raise HTTPException(status_code=400, detail="No outstanding balance for this course")
-    amount = float(body.amount) if body.amount else remaining
-    if amount <= 0 or amount > remaining:
-        raise HTTPException(status_code=400, detail=f"Amount must be between ₹1 and ₹{remaining:.0f}")
+    remaining = max(fee - await _total_paid(user["id"], body.course_id), 0)
+    amount = _resolve_razorpay_amount(remaining, body.amount)
     client = _razorpay_client()
-    receipt = f"c_{body.course_id[:8]}_{user['id'][:8]}_{int(datetime.now(timezone.utc).timestamp())}"[:40]
+    receipt = _new_razorpay_receipt(body.course_id, user["id"])
     try:
         order = client.order.create({
             "amount": int(round(amount * 100)),
@@ -95,7 +119,7 @@ async def create_razorpay_order(body: RazorpayOrderBody, user: dict = Depends(re
         })
     except Exception as e:
         logger.error(f"Razorpay order create failed: {e}")
-        raise HTTPException(status_code=502, detail=f"Payment gateway error: {e}")
+        raise HTTPException(status_code=502, detail="Payment gateway is temporarily unavailable. Please retry.")
     await db.razorpay_orders.insert_one({
         "_id": order["id"],
         "student_id": user["id"],
@@ -107,7 +131,7 @@ async def create_razorpay_order(body: RazorpayOrderBody, user: dict = Depends(re
     })
     return {
         "order_id": order["id"],
-        "amount": order["amount"],   # paise
+        "amount": order["amount"],
         "currency": order["currency"],
         "razorpay_key_id": os.environ.get("RAZORPAY_KEY_ID", "").strip(),
         "prefill": {"name": user["name"], "email": user["email"], "contact": user.get("phone") or ""},
@@ -122,73 +146,52 @@ class RazorpayVerifyBody(BaseModel):
 
 @router.post("/payments/razorpay/verify")
 async def verify_razorpay(body: RazorpayVerifyBody, user: dict = Depends(require_role("student"))):
-    key_secret = os.environ.get("RAZORPAY_KEY_SECRET", "").strip()
-    if not key_secret:
-        raise HTTPException(status_code=400, detail="Razorpay not configured")
-    expected = hmac.new(
-        key_secret.encode(),
-        f"{body.razorpay_order_id}|{body.razorpay_payment_id}".encode(),
-        hashlib.sha256,
-    ).hexdigest()
-    if not hmac.compare_digest(expected, body.razorpay_signature):
-        raise HTTPException(status_code=400, detail="Invalid payment signature")
+    _verify_razorpay_signature(body.razorpay_order_id, body.razorpay_payment_id, body.razorpay_signature)
     order = await db.razorpay_orders.find_one({"_id": body.razorpay_order_id, "student_id": user["id"]})
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     if order["status"] == "paid":
         return {"message": "Already recorded"}
     course = await db.courses.find_one({"_id": order["course_id"]})
-    now = datetime.now(timezone.utc).isoformat()
     payment_id = str(uuid.uuid4())
-    await db.payments.insert_one({
-        "_id": payment_id,
-        "student_id": user["id"],
-        "student_name": user["name"],
-        "course_id": order["course_id"],
-        "course_title": (course or {}).get("title", ""),
-        "batch_id": order.get("batch_id"),
+    now = datetime.now(timezone.utc).isoformat()
+    fake_body = type("Body", (), {
         "amount": order["amount"],
-        "currency": "INR",
         "method": "razorpay",
         "notes": f"Razorpay payment_id={body.razorpay_payment_id}",
-        "razorpay_order_id": body.razorpay_order_id,
-        "razorpay_payment_id": body.razorpay_payment_id,
-        "recorded_by": "razorpay",
-        "recorded_by_name": "Razorpay (online)",
-        "status": "paid",
-        "created_at": now,
-        "paid_at": now,
-    })
-    await db.razorpay_orders.update_one({"_id": body.razorpay_order_id}, {"$set": {"status": "paid", "payment_id": payment_id, "paid_at": now}})
-    # auto-enrol
+        "batch_id": order.get("batch_id"),
+    })()
+    doc = _build_payment_doc(
+        student={"_id": user["id"], "name": user["name"]},
+        course=course or {"_id": order["course_id"], "title": ""},
+        body=fake_body,
+        recorded_by_id="razorpay",
+        recorded_by_name="Razorpay (online)",
+        extras={
+            "_id": payment_id,
+            "razorpay_order_id": body.razorpay_order_id,
+            "razorpay_payment_id": body.razorpay_payment_id,
+        },
+    )
+    await db.payments.insert_one(doc)
+    await db.razorpay_orders.update_one(
+        {"_id": body.razorpay_order_id},
+        {"$set": {"status": "paid", "payment_id": payment_id, "paid_at": now}},
+    )
     total_paid = await _total_paid(user["id"], order["course_id"])
     fee = float((course or {}).get("price", 0) or 0)
-    existing = await db.enrollments.find_one({"course_id": order["course_id"], "student_id": user["id"]})
-    granted = False
-    if not existing:
-        await db.enrollments.insert_one({
-            "_id": str(uuid.uuid4()),
-            "course_id": order["course_id"],
-            "student_id": user["id"],
-            "batch_id": order.get("batch_id"),
-            "completed_lessons": [],
-            "payment_id": payment_id,
-            "grant_reason": "razorpay" if total_paid < fee else "fully_paid",
-            "enrolled_at": now,
-        })
-        granted = True
-    subject = f"Payment received — {(course or {}).get('title', 'course')}"
-    html = email_template(subject,
-        f"Hi {user['name']},<br/>We've received your online payment of ₹{order['amount']:.0f} for <b>{(course or {}).get('title','')}</b>."
-        f"<br/>Razorpay payment id: <code>{body.razorpay_payment_id}</code>"
-        f"<br/><br/>Outstanding: ₹{max(fee - total_paid, 0):.0f}"
+    reason = "fully_paid" if total_paid >= fee else "razorpay"
+    granted = await _maybe_enroll_and_notify(
+        {"_id": user["id"], "name": user["name"]}, course or {"_id": order["course_id"], "title": ""},
+        payment_id, order.get("batch_id"), fee, total_paid, reason,
     )
-    await notify(
-        [user["id"]], "Payment received", f"₹{order['amount']:.0f} received for {(course or {}).get('title','')}.",
-        f"/app/courses/{order['course_id']}",
-        email_subject=subject, email_html=html, cc_admin=True,
-    )
-    return {"message": "Payment verified", "payment_id": payment_id, "auto_enrolled": granted, "paid": total_paid, "outstanding": max(fee - total_paid, 0)}
+    return {
+        "message": "Payment verified",
+        "payment_id": payment_id,
+        "auto_enrolled": granted,
+        "paid": total_paid,
+        "outstanding": max(fee - total_paid, 0),
+    }
 
 
 class SettingsBody(BaseModel):
@@ -228,71 +231,105 @@ class PaymentRecordBody(BaseModel):
     grant_access: bool = True              # grant enrolment on record
 
 
-@router.post("/admin/payments/record")
-async def admin_record_payment(body: PaymentRecordBody, user: dict = Depends(require_role("admin"))):
-    """Admin records an offline/UPI payment. Optionally grants course access even for partial amounts."""
-    course = await db.courses.find_one({"_id": body.course_id})
+async def _fetch_course_and_student(course_id: str, student_id: str):
+    """Load course + student; raise 404 if either missing. Returns (course, student)."""
+    course = await db.courses.find_one({"_id": course_id})
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
-    student = await db.users.find_one({"_id": body.student_id, "role": "student"})
+    student = await db.users.find_one({"_id": student_id, "role": "student"})
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
-    course_fee = float(course.get("price", 0) or 0)
-    # Reject over-payment (single record cannot exceed fee minus already-paid)
-    prior_paid = await _total_paid(body.student_id, body.course_id)
-    if course_fee > 0 and (prior_paid + body.amount) > course_fee:
-        remaining = max(course_fee - prior_paid, 0)
+    return course, student
+
+
+def _assert_amount_within_outstanding(amount: float, fee: float, prior_paid: float):
+    """Reject over-payment. No-op for free courses (fee=0)."""
+    if fee > 0 and (prior_paid + amount) > fee:
+        remaining = max(fee - prior_paid, 0)
         raise HTTPException(status_code=400, detail=f"Amount exceeds outstanding balance. Remaining: ₹{remaining:.2f}")
+
+
+def _build_payment_doc(student, course, body, recorded_by_id: str, recorded_by_name: str, extras: Optional[dict] = None) -> dict:
+    """Build a `db.payments` insert doc from a request body + student/course context."""
     now = datetime.now(timezone.utc).isoformat()
     doc = {
         "_id": str(uuid.uuid4()),
-        "student_id": body.student_id,
+        "student_id": student["_id"],
         "student_name": student["name"],
-        "course_id": body.course_id,
+        "course_id": course["_id"],
         "course_title": course["title"],
-        "batch_id": body.batch_id,
+        "batch_id": getattr(body, "batch_id", None),
         "amount": float(body.amount),
         "currency": "INR",
-        "method": body.method,
-        "notes": body.notes.strip(),
-        "recorded_by": user["id"],
-        "recorded_by_name": user["name"],
+        "method": getattr(body, "method", "upi"),
+        "notes": (getattr(body, "notes", "") or "").strip(),
+        "recorded_by": recorded_by_id,
+        "recorded_by_name": recorded_by_name,
         "status": "paid",
         "created_at": now,
         "paid_at": now,
     }
+    if extras:
+        doc.update(extras)
+    return doc
+
+
+async def _maybe_enroll_and_notify(student, course, payment_id: str, batch_id: Optional[str],
+                                   fee: float, total_paid_after: float, grant_reason: str) -> bool:
+    """Create enrolment if student is not already enrolled. Send notifications. Returns True if newly enrolled."""
+    existing = await db.enrollments.find_one({"course_id": course["_id"], "student_id": student["_id"]})
+    if existing:
+        return False
+    now = datetime.now(timezone.utc).isoformat()
+    await db.enrollments.insert_one({
+        "_id": str(uuid.uuid4()),
+        "course_id": course["_id"],
+        "student_id": student["_id"],
+        "batch_id": batch_id,
+        "completed_lessons": [],
+        "payment_id": payment_id,
+        "granted_by_admin": grant_reason != "razorpay",
+        "grant_reason": grant_reason,
+        "enrolled_at": now,
+    })
+    subject = f"Enrolled in {course['title']}"
+    body_html = f"Hi {student['name']},<br/>You have been enrolled in <b>{course['title']}</b>."
+    if grant_reason == "fully_paid":
+        body_html += f"<br/><br/>Your full payment of ₹{fee:.0f} has been received — access is now unlocked."
+    elif grant_reason == "razorpay":
+        outstanding = max(fee - total_paid_after, 0)
+        body_html += f"<br/><br/>Online payment received.<br/>Outstanding: ₹{outstanding:.0f}"
+    else:
+        body_html += "<br/>Payment recorded and access granted."
+    await notify(
+        [student["_id"]], "Enrolled", f"Enrolled in {course['title']}.",
+        f"/app/courses/{course['_id']}",
+        email_subject=subject, email_html=email_template(subject, body_html),
+        cc_admin=True,
+    )
+    return True
+
+
+@router.post("/admin/payments/record")
+async def admin_record_payment(body: PaymentRecordBody, user: dict = Depends(require_role("admin"))):
+    """Admin records an offline/UPI payment. Auto-enrols on full payment; can also grant on partial at admin discretion."""
+    course, student = await _fetch_course_and_student(body.course_id, body.student_id)
+    fee = float(course.get("price", 0) or 0)
+    prior_paid = await _total_paid(body.student_id, body.course_id)
+    _assert_amount_within_outstanding(body.amount, fee, prior_paid)
+    doc = _build_payment_doc(student, course, body, user["id"], user["name"])
     await db.payments.insert_one(doc)
     total_paid_after = prior_paid + float(body.amount)
-    should_enroll = body.grant_access or (course_fee > 0 and total_paid_after >= course_fee)
+    fully_paid = fee > 0 and total_paid_after >= fee
+    should_enroll = body.grant_access or fully_paid
+    auto_granted = False
     if should_enroll:
-        existing = await db.enrollments.find_one({"course_id": body.course_id, "student_id": body.student_id})
-        if not existing:
-            reason = "fully_paid" if (course_fee > 0 and total_paid_after >= course_fee and not body.grant_access) else "admin_grant"
-            await db.enrollments.insert_one({
-                "_id": str(uuid.uuid4()),
-                "course_id": body.course_id,
-                "student_id": body.student_id,
-                "batch_id": body.batch_id,
-                "completed_lessons": [],
-                "payment_id": doc["_id"],
-                "granted_by_admin": True,
-                "grant_reason": reason,
-                "enrolled_at": now,
-            })
-            subject = f"Enrolled in {course['title']}"
-            body_html = f"Hi {student['name']},<br/>You have been enrolled in <b>{course['title']}</b>."
-            if reason == "fully_paid":
-                body_html += f"<br/><br/>Your full payment of ₹{course_fee:.0f} has been received — access is now unlocked."
-            else:
-                body_html += f"<br/>Your payment of ₹{body.amount} has been recorded."
-            await notify(
-                [body.student_id], "Enrolled", body_html.replace("<b>", "").replace("</b>", "").replace("<br/>", " "),
-                f"/app/courses/{body.course_id}",
-                email_subject=subject, email_html=email_template(subject, body_html),
-                cc_admin=True,
-            )
+        reason = "fully_paid" if (fully_paid and not body.grant_access) else "admin_grant"
+        auto_granted = await _maybe_enroll_and_notify(
+            student, course, doc["_id"], body.batch_id, fee, total_paid_after, reason,
+        )
     doc["id"] = doc.pop("_id")
-    doc["auto_granted"] = bool(should_enroll and not body.grant_access)
+    doc["auto_granted"] = bool(auto_granted and not body.grant_access)
     return doc
 
 

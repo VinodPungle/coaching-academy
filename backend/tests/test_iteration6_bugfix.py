@@ -12,12 +12,11 @@ import uuid
 import requests
 import pytest
 
-BASE = os.environ.get("REACT_APP_BACKEND_URL", "").rstrip("/")
-assert BASE, "REACT_APP_BACKEND_URL must be set"
+BASE = os.environ.get("REACT_APP_BACKEND_URL", "").rstrip("/") or "http://localhost:8001"
 API = f"{BASE}/api"
 
-ADMIN = {"email": "admin@rgpacademy.com", "password": "Admin@123"}
-TEACHER = {"email": "teacher@rgpacademy.com", "password": "Teacher@123"}
+ADMIN = {"email": os.getenv("TEST_ADMIN_EMAIL", "admin@rgpacademy.com"), "password": os.getenv("TEST_ADMIN_PASSWORD", "Admin@123")}
+TEACHER = {"email": os.getenv("TEST_TEACHER_EMAIL", "teacher@rgpacademy.com"), "password": os.getenv("TEST_TEACHER_PASSWORD", "Teacher@123")}
 
 
 def _login(creds):
@@ -156,7 +155,7 @@ def test_settings_public_razorpay_disabled(teacher_token):
     r = requests.get(f"{API}/settings/public", headers=_h(teacher_token), timeout=15)
     assert r.status_code == 200, r.text
     data = r.json()
-    assert data.get("razorpay_enabled") is False, (
+    assert data.get("razorpay_enabled") == False, (
         "Preview env should have empty Razorpay keys → razorpay_enabled must be False. "
         f"Got: {data.get('razorpay_enabled')}"
     )

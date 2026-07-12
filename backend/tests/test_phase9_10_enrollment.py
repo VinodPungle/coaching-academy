@@ -13,21 +13,21 @@ def _hdr(t): return {"Authorization": f"Bearer {t}"}
 
 def _new_student():
     email = f"test_p9_{uuid.uuid4().hex[:6]}@rgpacademy.com"
-    requests.post(f"{API}/auth/register", json={"name": "TEST_P9 S", "email": email, "password": "abcdef", "role": "student"}).raise_for_status()
-    return _login(email, "abcdef"), email
+    requests.post(f"{API}/auth/register", json={"name": "TEST_P9 S", "email": email, "password": os.getenv("TEST_FRESH_USER_PASSWORD", "abcdef"), "role": "student"}).raise_for_status()
+    return _login(email, os.getenv("TEST_FRESH_USER_PASSWORD", "abcdef")), email
 
 
 def _cleanup_user(email):
-    admin = _login("admin@rgpacademy.com", "Admin@123")
+    admin = _login(os.getenv("TEST_ADMIN_EMAIL", "admin@rgpacademy.com"), os.getenv("TEST_ADMIN_PASSWORD", "Admin@123"))
     users = requests.get(f"{API}/admin/users", headers=_hdr(admin)).json()
     uid = next((u["id"] for u in users if u["email"] == email), None)
     if uid: requests.delete(f"{API}/admin/users/{uid}", headers=_hdr(admin))
 
 
 def test_teacher_moves_student_between_batches_and_selfpaced():
-    tt = _login("teacher@rgpacademy.com", "Teacher@123")
+    tt = _login(os.getenv("TEST_TEACHER_EMAIL", "teacher@rgpacademy.com"), os.getenv("TEST_TEACHER_PASSWORD", "Teacher@123"))
     # ensure demo mode so student can enrol freely (paid course)
-    admin = _login("admin@rgpacademy.com", "Admin@123")
+    admin = _login(os.getenv("TEST_ADMIN_EMAIL", "admin@rgpacademy.com"), os.getenv("TEST_ADMIN_PASSWORD", "Admin@123"))
     requests.put(f"{API}/admin/settings", headers=_hdr(admin), json={"portal_mode": "demo"})
     course = requests.post(f"{API}/courses", headers=_hdr(tt), json={
         "title": f"TEST_P9 {uuid.uuid4().hex[:8]}", "subject": "Physics", "description": "d", "price": 1000,
@@ -60,8 +60,8 @@ def test_teacher_moves_student_between_batches_and_selfpaced():
 
 
 def test_move_to_nonexistent_batch_rejected():
-    tt = _login("teacher@rgpacademy.com", "Teacher@123")
-    admin = _login("admin@rgpacademy.com", "Admin@123")
+    tt = _login(os.getenv("TEST_TEACHER_EMAIL", "teacher@rgpacademy.com"), os.getenv("TEST_TEACHER_PASSWORD", "Teacher@123"))
+    admin = _login(os.getenv("TEST_ADMIN_EMAIL", "admin@rgpacademy.com"), os.getenv("TEST_ADMIN_PASSWORD", "Admin@123"))
     requests.put(f"{API}/admin/settings", headers=_hdr(admin), json={"portal_mode": "demo"})
     course = requests.post(f"{API}/courses", headers=_hdr(tt), json={
         "title": f"TEST_P9b {uuid.uuid4().hex[:8]}", "subject": "Physics", "description": "d", "price": 100,
@@ -80,7 +80,7 @@ def test_move_to_nonexistent_batch_rejected():
 
 
 def test_dashboard_shows_free_courses():
-    tt = _login("teacher@rgpacademy.com", "Teacher@123")
+    tt = _login(os.getenv("TEST_TEACHER_EMAIL", "teacher@rgpacademy.com"), os.getenv("TEST_TEACHER_PASSWORD", "Teacher@123"))
     free = requests.post(f"{API}/courses", headers=_hdr(tt), json={
         "title": f"TEST_P10free {uuid.uuid4().hex[:8]}", "subject": "Physics", "description": "d", "price": 0, "is_free": True,
     }).json()

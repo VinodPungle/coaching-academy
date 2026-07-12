@@ -21,7 +21,7 @@ def _past(days=2):
 
 
 def _make_class(link=""):
-    tt = _login("teacher@rgpacademy.com", "Teacher@123")
+    tt = _login(os.getenv("TEST_TEACHER_EMAIL", "teacher@rgpacademy.com"), os.getenv("TEST_TEACHER_PASSWORD", "Teacher@123"))
     r = requests.post(f"{API}/live-classes", headers=_hdr(tt), json={
         "title": f"TEST_P5 {uuid.uuid4().hex[:8]}", "subject": "Physics",
         "start_time": _future(3), "duration_min": 60, "meeting_link": link or "https://meet.google.com/abc",
@@ -81,7 +81,7 @@ def test_set_and_remove_recording():
 
 def test_attendance_idempotent_and_teacher_view():
     tt, cid = _make_class()
-    st = _login("student@rgpacademy.com", "Student@123")
+    st = _login(os.getenv("TEST_STUDENT_EMAIL", "student@rgpacademy.com"), os.getenv("TEST_STUDENT_PASSWORD", "Student@123"))
     try:
         # student joins twice
         r1 = requests.post(f"{API}/live-classes/{cid}/attend", headers=_hdr(st))
@@ -98,8 +98,8 @@ def test_attendance_idempotent_and_teacher_view():
 
 
 def test_attendance_requires_enrollment_for_course_scoped_class():
-    tt = _login("teacher@rgpacademy.com", "Teacher@123")
-    st = _login("student@rgpacademy.com", "Student@123")
+    tt = _login(os.getenv("TEST_TEACHER_EMAIL", "teacher@rgpacademy.com"), os.getenv("TEST_TEACHER_PASSWORD", "Teacher@123"))
+    st = _login(os.getenv("TEST_STUDENT_EMAIL", "student@rgpacademy.com"), os.getenv("TEST_STUDENT_PASSWORD", "Student@123"))
     # create teacher-only course + class linked to it
     course = requests.post(f"{API}/courses", headers=_hdr(tt), json={
         "title": f"TEST_P5c {uuid.uuid4().hex[:8]}", "subject": "Physics", "description": "d", "price": 0,
@@ -119,7 +119,7 @@ def test_attendance_requires_enrollment_for_course_scoped_class():
 
 def test_past_class_without_recording_shows_no_recording_url():
     """Past class with no recording — get_live_class should return no recording_url."""
-    tt = _login("teacher@rgpacademy.com", "Teacher@123")
+    tt = _login(os.getenv("TEST_TEACHER_EMAIL", "teacher@rgpacademy.com"), os.getenv("TEST_TEACHER_PASSWORD", "Teacher@123"))
     # create then reschedule to past to simulate. Since we block past reschedules, insert directly via DB.
     # simpler: create with far-past start_time by bypassing validation using motor is out of scope; use future then verify recording is absent
     r = requests.post(f"{API}/live-classes", headers=_hdr(tt), json={

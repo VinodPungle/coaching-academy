@@ -5,6 +5,7 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
 import os
+import uuid
 import logging
 from fastapi import FastAPI, APIRouter
 from starlette.middleware.cors import CORSMiddleware
@@ -98,7 +99,7 @@ async def startup():
             if "sub_topics" not in sec:
                 existing_lessons = sec.pop("lessons", []) if isinstance(sec.get("lessons"), list) else []
                 sec["sub_topics"] = [{
-                    "id": str(__import__("uuid").uuid4()),
+                    "id": str(uuid.uuid4()),
                     "title": "Overview",
                     "order": 0,
                     "lessons": existing_lessons,

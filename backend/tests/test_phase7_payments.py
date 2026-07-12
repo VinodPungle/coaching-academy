@@ -13,12 +13,12 @@ def _hdr(t): return {"Authorization": f"Bearer {t}"}
 
 def _new_student():
     email = f"test_p7_{uuid.uuid4().hex[:6]}@rgpacademy.com"
-    requests.post(f"{API}/auth/register", json={"name": "TEST_P7 S", "email": email, "password": "abcdef", "role": "student"}).raise_for_status()
-    return _login(email, "abcdef"), email
+    requests.post(f"{API}/auth/register", json={"name": "TEST_P7 S", "email": email, "password": os.getenv("TEST_FRESH_USER_PASSWORD", "abcdef"), "role": "student"}).raise_for_status()
+    return _login(email, os.getenv("TEST_FRESH_USER_PASSWORD", "abcdef")), email
 
 
 def _make_paid_course():
-    tt = _login("teacher@rgpacademy.com", "Teacher@123")
+    tt = _login(os.getenv("TEST_TEACHER_EMAIL", "teacher@rgpacademy.com"), os.getenv("TEST_TEACHER_PASSWORD", "Teacher@123"))
     r = requests.post(f"{API}/courses", headers=_hdr(tt), json={
         "title": f"TEST_P7 {uuid.uuid4().hex[:8]}", "subject": "Physics", "description": "d", "price": 1000, "is_free": False,
     })
@@ -26,7 +26,7 @@ def _make_paid_course():
 
 
 def _make_free_course():
-    tt = _login("teacher@rgpacademy.com", "Teacher@123")
+    tt = _login(os.getenv("TEST_TEACHER_EMAIL", "teacher@rgpacademy.com"), os.getenv("TEST_TEACHER_PASSWORD", "Teacher@123"))
     r = requests.post(f"{API}/courses", headers=_hdr(tt), json={
         "title": f"TEST_P7f {uuid.uuid4().hex[:8]}", "subject": "Physics", "description": "d", "price": 0, "is_free": True,
     })
@@ -38,7 +38,7 @@ def _cleanup(cid, tt):
 
 
 def _cleanup_user(email):
-    admin = _login("admin@rgpacademy.com", "Admin@123")
+    admin = _login(os.getenv("TEST_ADMIN_EMAIL", "admin@rgpacademy.com"), os.getenv("TEST_ADMIN_PASSWORD", "Admin@123"))
     users = requests.get(f"{API}/admin/users", headers=_hdr(admin)).json()
     uid = next((u["id"] for u in users if u["email"] == email), None)
     if uid:
@@ -46,7 +46,7 @@ def _cleanup_user(email):
 
 
 def _set_portal_mode(mode):
-    admin = _login("admin@rgpacademy.com", "Admin@123")
+    admin = _login(os.getenv("TEST_ADMIN_EMAIL", "admin@rgpacademy.com"), os.getenv("TEST_ADMIN_PASSWORD", "Admin@123"))
     requests.put(f"{API}/admin/settings", headers=_hdr(admin), json={"portal_mode": mode}).raise_for_status()
 
 
@@ -90,7 +90,7 @@ def test_free_course_enrol_works_in_any_mode():
 
 
 def test_admin_settings_upi_vpa_validation():
-    admin = _login("admin@rgpacademy.com", "Admin@123")
+    admin = _login(os.getenv("TEST_ADMIN_EMAIL", "admin@rgpacademy.com"), os.getenv("TEST_ADMIN_PASSWORD", "Admin@123"))
     # invalid VPA (no @)
     r = requests.put(f"{API}/admin/settings", headers=_hdr(admin), json={"upi_vpa": "notavpa"})
     assert r.status_code == 400
@@ -98,7 +98,7 @@ def test_admin_settings_upi_vpa_validation():
     r = requests.put(f"{API}/admin/settings", headers=_hdr(admin), json={"upi_vpa": "rohini@upi", "upi_qr_url": "/api/files/xyz"})
     assert r.status_code == 200
     # public endpoint returns
-    st = _login("student@rgpacademy.com", "Student@123")
+    st = _login(os.getenv("TEST_STUDENT_EMAIL", "student@rgpacademy.com"), os.getenv("TEST_STUDENT_PASSWORD", "Student@123"))
     r = requests.get(f"{API}/settings/public", headers=_hdr(st)).json()
     assert r["upi_vpa"] == "rohini@upi"
     assert r["upi_qr_url"] == "/api/files/xyz"
@@ -111,7 +111,7 @@ def test_admin_records_partial_payment_and_grants_access():
     _set_portal_mode("live")
     tt, cid = _make_paid_course()  # fee = 1000
     st_token, st_email = _new_student()
-    admin = _login("admin@rgpacademy.com", "Admin@123")
+    admin = _login(os.getenv("TEST_ADMIN_EMAIL", "admin@rgpacademy.com"), os.getenv("TEST_ADMIN_PASSWORD", "Admin@123"))
     users = requests.get(f"{API}/admin/users", headers=_hdr(admin)).json()
     sid = next(u["id"] for u in users if u["email"] == st_email)
     try:
@@ -140,7 +140,7 @@ def test_reject_overpayment_and_edit():
     _set_portal_mode("live")
     tt, cid = _make_paid_course()  # fee = 1000
     st_token, st_email = _new_student()
-    admin = _login("admin@rgpacademy.com", "Admin@123")
+    admin = _login(os.getenv("TEST_ADMIN_EMAIL", "admin@rgpacademy.com"), os.getenv("TEST_ADMIN_PASSWORD", "Admin@123"))
     users = requests.get(f"{API}/admin/users", headers=_hdr(admin)).json()
     sid = next(u["id"] for u in users if u["email"] == st_email)
     try:
@@ -178,7 +178,7 @@ def test_admin_grant_enrollment_without_payment():
     _set_portal_mode("live")
     tt, cid = _make_paid_course()
     st_token, st_email = _new_student()
-    admin = _login("admin@rgpacademy.com", "Admin@123")
+    admin = _login(os.getenv("TEST_ADMIN_EMAIL", "admin@rgpacademy.com"), os.getenv("TEST_ADMIN_PASSWORD", "Admin@123"))
     users = requests.get(f"{API}/admin/users", headers=_hdr(admin)).json()
     sid = next(u["id"] for u in users if u["email"] == st_email)
     try:

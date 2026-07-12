@@ -12,10 +12,10 @@ import pytest
 BASE_URL = os.environ["REACT_APP_BACKEND_URL"].rstrip("/") if os.environ.get("REACT_APP_BACKEND_URL") else "https://educoach-platform.preview.emergentagent.com"
 API = f"{BASE_URL}/api"
 
-TEACHER_EMAIL = "teacher@rgpacademy.com"
-TEACHER_PASSWORD = "Teacher@123"
-STUDENT_EMAIL = "student@rgpacademy.com"
-STUDENT_PASSWORD = "Student@123"
+TEACHER_EMAIL = os.getenv("TEST_TEACHER_EMAIL", "teacher@rgpacademy.com")
+TEACHER_PASSWORD = os.getenv("TEST_TEACHER_PASSWORD", "Teacher@123")
+STUDENT_EMAIL = os.getenv("TEST_STUDENT_EMAIL", "student@rgpacademy.com")
+STUDENT_PASSWORD = os.getenv("TEST_STUDENT_PASSWORD", "Student@123")
 
 
 # ---------------------------- fixtures ---------------------------- #

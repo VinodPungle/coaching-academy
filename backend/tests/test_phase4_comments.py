@@ -16,7 +16,7 @@ def _hdr(t): return {"Authorization": f"Bearer {t}"}
 
 
 def _make_course_with_lesson():
-    tt = _login("teacher@rgpacademy.com", "Teacher@123")
+    tt = _login(os.getenv("TEST_TEACHER_EMAIL", "teacher@rgpacademy.com"), os.getenv("TEST_TEACHER_PASSWORD", "Teacher@123"))
     r = requests.post(f"{API}/courses", headers=_hdr(tt), json={
         "title": f"TEST_P4 {uuid.uuid4().hex[:8]}", "subject": "Physics", "description": "d", "price": 0,
     })
@@ -31,7 +31,7 @@ def _make_course_with_lesson():
 
 
 def _enroll_student(cid):
-    st = _login("student@rgpacademy.com", "Student@123")
+    st = _login(os.getenv("TEST_STUDENT_EMAIL", "student@rgpacademy.com"), os.getenv("TEST_STUDENT_PASSWORD", "Student@123"))
     requests.post(f"{API}/courses/{cid}/enroll", headers=_hdr(st), json={})
     return st
 
@@ -52,7 +52,7 @@ def test_student_and_teacher_can_post_and_reply():
         rep = requests.post(url, headers=_hdr(tt), json={"body": "Use energy conservation.", "parent_id": cid_root}).json()
         # list
         data = requests.get(url, headers=_hdr(st)).json()
-        assert data["enabled"] is True
+        assert data["enabled"] == True
         assert len(data["comments"]) == 2
         parents = [c for c in data["comments"] if not c["parent_id"]]
         assert len(parents) == 1
@@ -76,7 +76,7 @@ def test_teacher_disable_blocks_new_comments():
         # list returns enabled=false
         url = f"{API}/lessons/{cid}/{stid}/{lid}/comments"
         data = requests.get(url, headers=_hdr(st)).json()
-        assert data["enabled"] is False
+        assert data["enabled"] == False
         # student post blocked
         r = requests.post(url, headers=_hdr(st), json={"body": "hi"})
         assert r.status_code == 403
@@ -86,11 +86,11 @@ def test_teacher_disable_blocks_new_comments():
 
 def test_non_enrolled_student_denied():
     tt, cid, sid, stid, lid = _make_course_with_lesson()
-    st = _login("student@rgpacademy.com", "Student@123")
+    st = _login(os.getenv("TEST_STUDENT_EMAIL", "student@rgpacademy.com"), os.getenv("TEST_STUDENT_PASSWORD", "Student@123"))
     # ensure not enrolled: use fresh registration
     fresh_email = f"test_p4_{uuid.uuid4().hex[:6]}@rgpacademy.com"
-    requests.post(f"{API}/auth/register", json={"name": "TEST_P4 U", "email": fresh_email, "password": "abcdef", "role": "student"})
-    fresh = _login(fresh_email, "abcdef")
+    requests.post(f"{API}/auth/register", json={"name": "TEST_P4 U", "email": fresh_email, "password": os.getenv("TEST_FRESH_USER_PASSWORD", "abcdef"), "role": "student"})
+    fresh = _login(fresh_email, os.getenv("TEST_FRESH_USER_PASSWORD", "abcdef"))
     try:
         url = f"{API}/lessons/{cid}/{stid}/{lid}/comments"
         r = requests.get(url, headers=_hdr(fresh))
@@ -100,7 +100,7 @@ def test_non_enrolled_student_denied():
     finally:
         _cleanup(cid, tt)
         # cleanup fresh user
-        admin = _login("admin@rgpacademy.com", "Admin@123")
+        admin = _login(os.getenv("TEST_ADMIN_EMAIL", "admin@rgpacademy.com"), os.getenv("TEST_ADMIN_PASSWORD", "Admin@123"))
         users = requests.get(f"{API}/admin/users", headers=_hdr(admin)).json()
         uid = next((u["id"] for u in users if u["email"] == fresh_email), None)
         if uid:
@@ -144,7 +144,7 @@ def test_delete_root_cascades_replies():
 
 
 def test_recording_comments_teacher_toggle():
-    tt = _login("teacher@rgpacademy.com", "Teacher@123")
+    tt = _login(os.getenv("TEST_TEACHER_EMAIL", "teacher@rgpacademy.com"), os.getenv("TEST_TEACHER_PASSWORD", "Teacher@123"))
     # create a live class
     r = requests.post(f"{API}/live-classes", headers=_hdr(tt), json={
         "title": "TEST_P4 class", "subject": "Physics",
@@ -160,7 +160,7 @@ def test_recording_comments_teacher_toggle():
         # disable
         requests.put(f"{API}/live-classes/{class_id}/comments-toggle", headers=_hdr(tt), json={"comments_enabled": False}).raise_for_status()
         data = requests.get(url, headers=_hdr(tt)).json()
-        assert data["enabled"] is False
+        assert data["enabled"] == False
         r = requests.post(url, headers=_hdr(tt), json={"body": "hi"})
         assert r.status_code == 403
     finally:

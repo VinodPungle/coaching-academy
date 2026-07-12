@@ -12,7 +12,7 @@ def _hdr(t): return {"Authorization": f"Bearer {t}"}
 
 
 def _make_test(retakes=False):
-    tt = _login("teacher@rgpacademy.com", "Teacher@123")
+    tt = _login(os.getenv("TEST_TEACHER_EMAIL", "teacher@rgpacademy.com"), os.getenv("TEST_TEACHER_PASSWORD", "Teacher@123"))
     r = requests.post(f"{API}/tests", headers=_hdr(tt), json={
         "title": f"TEST_P6 {uuid.uuid4().hex[:8]}", "subject": "Physics", "duration_min": 30, "published": True,
         "retakes_allowed": retakes,
@@ -23,7 +23,7 @@ def _make_test(retakes=False):
 
 def test_default_retakes_disabled():
     tt, test = _make_test(retakes=False)
-    st = _login("student@rgpacademy.com", "Student@123")
+    st = _login(os.getenv("TEST_STUDENT_EMAIL", "student@rgpacademy.com"), os.getenv("TEST_STUDENT_PASSWORD", "Student@123"))
     try:
         # attempt 1
         r = requests.post(f"{API}/tests/{test['id']}/attempt", headers=_hdr(st), json={"answers": {test["questions"][0]["id"]: 1}})
@@ -34,14 +34,14 @@ def test_default_retakes_disabled():
         assert "retake" in r.json()["detail"].lower() or "already" in r.json()["detail"].lower()
     finally:
         # cleanup: force delete via admin (attempts prevent teacher delete)
-        admin = _login("admin@rgpacademy.com", "Admin@123")
+        admin = _login(os.getenv("TEST_ADMIN_EMAIL", "admin@rgpacademy.com"), os.getenv("TEST_ADMIN_PASSWORD", "Admin@123"))
         r = requests.get(f"{API}/tests", headers=_hdr(admin)).json()
         # admin sees only own tests, so use direct DB via delete_many is out of scope. Skip test cleanup — will be cleaned by TEST_ cleanup.
 
 
 def test_retakes_enabled_allows_reattempt_and_updates_score():
     tt, test = _make_test(retakes=True)
-    st = _login("student@rgpacademy.com", "Student@123")
+    st = _login(os.getenv("TEST_STUDENT_EMAIL", "student@rgpacademy.com"), os.getenv("TEST_STUDENT_PASSWORD", "Student@123"))
     try:
         qid = test["questions"][0]["id"]
         r1 = requests.post(f"{API}/tests/{test['id']}/attempt", headers=_hdr(st), json={"answers": {qid: 0}}).json()
@@ -59,7 +59,7 @@ def test_retakes_enabled_allows_reattempt_and_updates_score():
 
 def test_teacher_can_flip_retakes_mid_course():
     tt, test = _make_test(retakes=False)
-    st = _login("student@rgpacademy.com", "Student@123")
+    st = _login(os.getenv("TEST_STUDENT_EMAIL", "student@rgpacademy.com"), os.getenv("TEST_STUDENT_PASSWORD", "Student@123"))
     qid = test["questions"][0]["id"]
     try:
         # student attempts once

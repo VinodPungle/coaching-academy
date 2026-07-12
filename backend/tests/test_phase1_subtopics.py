@@ -22,7 +22,7 @@ def _hdr(token):
 
 def test_migration_backfills_sub_topics():
     """Every course in the DB should have every section wrapped in at least one sub_topic."""
-    tt = _login("teacher@rgpacademy.com", "Teacher@123")
+    tt = _login(os.getenv("TEST_TEACHER_EMAIL", "teacher@rgpacademy.com"), os.getenv("TEST_TEACHER_PASSWORD", "Teacher@123"))
     courses = requests.get(f"{API}/teacher/courses", headers=_hdr(tt)).json()
     assert len(courses) >= 1
     for c in courses:
@@ -51,7 +51,7 @@ def _cleanup(course_id, token):
 
 
 def test_add_section_creates_default_sub_topic():
-    tt = _login("teacher@rgpacademy.com", "Teacher@123")
+    tt = _login(os.getenv("TEST_TEACHER_EMAIL", "teacher@rgpacademy.com"), os.getenv("TEST_TEACHER_PASSWORD", "Teacher@123"))
     cid = _create_course(tt)
     try:
         sec = requests.post(f"{API}/courses/{cid}/sections", headers=_hdr(tt), json={"title": "Ch 1"}).json()
@@ -62,7 +62,7 @@ def test_add_section_creates_default_sub_topic():
 
 
 def test_add_section_empty_title_rejected():
-    tt = _login("teacher@rgpacademy.com", "Teacher@123")
+    tt = _login(os.getenv("TEST_TEACHER_EMAIL", "teacher@rgpacademy.com"), os.getenv("TEST_TEACHER_PASSWORD", "Teacher@123"))
     cid = _create_course(tt)
     try:
         r = requests.post(f"{API}/courses/{cid}/sections", headers=_hdr(tt), json={"title": "   "})
@@ -72,7 +72,7 @@ def test_add_section_empty_title_rejected():
 
 
 def test_sub_topic_crud_and_duplicate_rejected():
-    tt = _login("teacher@rgpacademy.com", "Teacher@123")
+    tt = _login(os.getenv("TEST_TEACHER_EMAIL", "teacher@rgpacademy.com"), os.getenv("TEST_TEACHER_PASSWORD", "Teacher@123"))
     cid = _create_course(tt)
     try:
         sec = requests.post(f"{API}/courses/{cid}/sections", headers=_hdr(tt), json={"title": "S1"}).json()
@@ -93,7 +93,7 @@ def test_sub_topic_crud_and_duplicate_rejected():
 
 
 def test_delete_sub_topic_blocked_if_lessons_exist():
-    tt = _login("teacher@rgpacademy.com", "Teacher@123")
+    tt = _login(os.getenv("TEST_TEACHER_EMAIL", "teacher@rgpacademy.com"), os.getenv("TEST_TEACHER_PASSWORD", "Teacher@123"))
     cid = _create_course(tt)
     try:
         sec = requests.post(f"{API}/courses/{cid}/sections", headers=_hdr(tt), json={"title": "S"}).json()
@@ -114,7 +114,7 @@ def test_delete_sub_topic_blocked_if_lessons_exist():
 
 
 def test_reorder_sub_topics():
-    tt = _login("teacher@rgpacademy.com", "Teacher@123")
+    tt = _login(os.getenv("TEST_TEACHER_EMAIL", "teacher@rgpacademy.com"), os.getenv("TEST_TEACHER_PASSWORD", "Teacher@123"))
     cid = _create_course(tt)
     try:
         sec = requests.post(f"{API}/courses/{cid}/sections", headers=_hdr(tt), json={"title": "S"}).json()
@@ -136,7 +136,7 @@ def test_reorder_sub_topics():
 
 
 def test_add_lesson_requires_url_or_notes():
-    tt = _login("teacher@rgpacademy.com", "Teacher@123")
+    tt = _login(os.getenv("TEST_TEACHER_EMAIL", "teacher@rgpacademy.com"), os.getenv("TEST_TEACHER_PASSWORD", "Teacher@123"))
     cid = _create_course(tt)
     try:
         sec = requests.post(f"{API}/courses/{cid}/sections", headers=_hdr(tt), json={"title": "S"}).json()
@@ -157,7 +157,7 @@ def test_add_lesson_requires_url_or_notes():
 
 
 def test_get_lesson_page_prev_next():
-    tt = _login("teacher@rgpacademy.com", "Teacher@123")
+    tt = _login(os.getenv("TEST_TEACHER_EMAIL", "teacher@rgpacademy.com"), os.getenv("TEST_TEACHER_PASSWORD", "Teacher@123"))
     cid = _create_course(tt)
     try:
         sec = requests.post(f"{API}/courses/{cid}/sections", headers=_hdr(tt), json={"title": "S"}).json()
@@ -184,8 +184,8 @@ def test_get_lesson_page_prev_next():
 
 def test_completed_lesson_progress_accounts_for_subtopics():
     """Progress should be based on total lessons across all sub_topics."""
-    tt = _login("teacher@rgpacademy.com", "Teacher@123")
-    st_token = _login("student@rgpacademy.com", "Student@123")
+    tt = _login(os.getenv("TEST_TEACHER_EMAIL", "teacher@rgpacademy.com"), os.getenv("TEST_TEACHER_PASSWORD", "Teacher@123"))
+    st_token = _login(os.getenv("TEST_STUDENT_EMAIL", "student@rgpacademy.com"), os.getenv("TEST_STUDENT_PASSWORD", "Student@123"))
     # use an existing seeded course (has 2 sections, each with 1+ sub_topics)
     courses = requests.get(f"{API}/courses", headers=_hdr(st_token)).json()
     course = courses[0]
@@ -202,7 +202,7 @@ def test_completed_lesson_progress_accounts_for_subtopics():
 
 def test_migration_idempotent():
     """Re-running startup migration should be a no-op (no double-wrapping)."""
-    tt = _login("teacher@rgpacademy.com", "Teacher@123")
+    tt = _login(os.getenv("TEST_TEACHER_EMAIL", "teacher@rgpacademy.com"), os.getenv("TEST_TEACHER_PASSWORD", "Teacher@123"))
     courses = requests.get(f"{API}/teacher/courses", headers=_hdr(tt)).json()
     for c in courses:
         full = requests.get(f"{API}/courses/{c['id']}", headers=_hdr(tt)).json()
