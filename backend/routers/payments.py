@@ -109,9 +109,12 @@ async def admin_record_payment(body: PaymentRecordBody, user: dict = Depends(req
         "paid_at": now,
     }
     await db.payments.insert_one(doc)
-    if body.grant_access:
+    total_paid_after = prior_paid + float(body.amount)
+    should_enroll = body.grant_access or (course_fee > 0 and total_paid_after >= course_fee)
+    if should_enroll:
         existing = await db.enrollments.find_one({"course_id": body.course_id, "student_id": body.student_id})
         if not existing:
+            reason = "fully_paid" if (course_fee > 0 and total_paid_after >= course_fee and not body.grant_access) else "admin_grant"
             await db.enrollments.insert_one({
                 "_id": str(uuid.uuid4()),
                 "course_id": body.course_id,
@@ -120,17 +123,22 @@ async def admin_record_payment(body: PaymentRecordBody, user: dict = Depends(req
                 "completed_lessons": [],
                 "payment_id": doc["_id"],
                 "granted_by_admin": True,
+                "grant_reason": reason,
                 "enrolled_at": now,
             })
+            subject = f"Enrolled in {course['title']}"
+            body_html = f"Hi {student['name']},<br/>You have been enrolled in <b>{course['title']}</b>."
+            if reason == "fully_paid":
+                body_html += f"<br/><br/>Your full payment of ₹{course_fee:.0f} has been received — access is now unlocked."
+            else:
+                body_html += f"<br/>Your payment of ₹{body.amount} has been recorded."
             await notify(
-                [body.student_id],
-                "Enrolled by admin",
-                f"You have been enrolled in {course['title']}.",
+                [body.student_id], "Enrolled", body_html.replace("<b>", "").replace("</b>", "").replace("<br/>", " "),
                 f"/app/courses/{body.course_id}",
-                email_subject=f"Enrolled in {course['title']}",
-                email_html=email_template("Enrolled", f"Hi {student['name']},<br/>You have been enrolled in <b>{course['title']}</b>. Your payment of ₹{body.amount} has been recorded."),
+                email_subject=subject, email_html=email_template(subject, body_html),
             )
     doc["id"] = doc.pop("_id")
+    doc["auto_granted"] = bool(should_enroll and not body.grant_access)
     return doc
 
 
@@ -157,6 +165,34 @@ async def admin_edit_payment(payment_id: str, body: PaymentEditBody, user: dict 
     if body.method is not None:
         update["method"] = body.method
     await db.payments.update_one({"_id": payment_id}, {"$set": update})
+    # Auto-enroll if this edit pushes total paid to full fee (and student wasn't enrolled)
+    new_total = other_paid + float(body.amount)
+    if fee > 0 and new_total >= fee:
+        student_id = payment["student_id"]
+        course_id = payment["course_id"]
+        existing = await db.enrollments.find_one({"course_id": course_id, "student_id": student_id})
+        if not existing:
+            await db.enrollments.insert_one({
+                "_id": str(uuid.uuid4()),
+                "course_id": course_id,
+                "student_id": student_id,
+                "batch_id": payment.get("batch_id"),
+                "completed_lessons": [],
+                "payment_id": payment_id,
+                "granted_by_admin": True,
+                "grant_reason": "fully_paid",
+                "enrolled_at": datetime.now(timezone.utc).isoformat(),
+            })
+            student = await db.users.find_one({"_id": student_id})
+            await notify(
+                [student_id], "Enrolled", f"Full payment received for {course['title']} — access unlocked.",
+                f"/app/courses/{course_id}",
+                email_subject=f"Enrolled in {course['title']}",
+                email_html=email_template(
+                    f"Enrolled in {course['title']}",
+                    f"Hi {(student or {}).get('name','')},<br/>Your full payment of ₹{fee:.0f} has been received. Access to <b>{course['title']}</b> is now unlocked.",
+                ),
+            )
     return {"message": "Payment updated"}
 
 

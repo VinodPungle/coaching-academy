@@ -25,9 +25,14 @@ export function fileUrl(url) {
   return url.startsWith("/") ? `${process.env.REACT_APP_BACKEND_URL}${url}` : url;
 }
 
-export async function uploadFile(file) {
+export async function uploadFile(file, onProgress) {
   const fd = new FormData();
   fd.append("file", file);
-  const { data } = await api.post("/files/upload", fd, { headers: { "Content-Type": "multipart/form-data" } });
+  const { data } = await api.post("/files/upload", fd, {
+    headers: { "Content-Type": "multipart/form-data" },
+    onUploadProgress: onProgress ? (e) => {
+      if (e.total) onProgress(Math.round((e.loaded / e.total) * 100));
+    } : undefined,
+  });
   return data;
 }

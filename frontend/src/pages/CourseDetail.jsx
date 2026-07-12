@@ -28,6 +28,8 @@ export default function CourseDetail() {
   const [renamingSubTopic, setRenamingSubTopic] = useState(null); // {sectionId, id, title}
   const [lessonForm, setLessonForm] = useState({}); // { subTopicId: {title, url, duration, notes: []} }
   const [uploadingFor, setUploadingFor] = useState(null);
+  const [uploadingVideoFor, setUploadingVideoFor] = useState(null);
+  const [videoProgress, setVideoProgress] = useState({}); // { subTopicId: pct }
 
   const isOwner = user.role !== "student";
 
@@ -147,6 +149,27 @@ export default function CourseDetail() {
       toast.success(`Uploaded ${res.filename}`);
     } catch (err) { toast.error(formatApiError(err)); }
     finally { setUploadingFor(null); }
+  };
+
+  const handleVideoFile = async (stid, file) => {
+    if (!file) return;
+    const videoExts = /\.(mp4|webm|mov|m4v|ogg)$/i;
+    if (!videoExts.test(file.name)) {
+      toast.error("Please choose an mp4/webm/mov/m4v/ogg video file");
+      return;
+    }
+    if (file.size > 500 * 1024 * 1024) {
+      toast.error("Video too large (max 500 MB). Consider hosting on YouTube/Drive instead.");
+      return;
+    }
+    setUploadingVideoFor(stid);
+    setVideoProgress({ ...videoProgress, [stid]: 0 });
+    try {
+      const res = await uploadFile(file, (pct) => setVideoProgress((prev) => ({ ...prev, [stid]: pct })));
+      setLF(stid, { url: res.url });
+      toast.success(`Uploaded ${res.filename}`);
+    } catch (err) { toast.error(formatApiError(err)); }
+    finally { setUploadingVideoFor(null); setVideoProgress((prev) => ({ ...prev, [stid]: 0 })); }
   };
 
   const addLesson = async (sid, stid) => {
@@ -344,7 +367,7 @@ export default function CourseDetail() {
                               <div className="pl-10 pr-5 py-3 bg-zinc-50/60 space-y-2">
                                 <div className="grid sm:grid-cols-6 gap-2 items-center">
                                   <input data-testid={`lesson-title-input-${st.id}`} value={lessonForm[st.id]?.title || ""} onChange={(e) => setLF(st.id, { title: e.target.value })} placeholder="Lesson title" className="sm:col-span-2 border border-zinc-300 px-2.5 py-1.5 text-sm" />
-                                  <input data-testid={`lesson-url-input-${st.id}`} value={lessonForm[st.id]?.url || ""} onChange={(e) => setLF(st.id, { url: e.target.value })} placeholder="Video URL (YouTube / Drive)" className="sm:col-span-2 border border-zinc-300 px-2.5 py-1.5 text-sm" />
+                                  <input data-testid={`lesson-url-input-${st.id}`} value={lessonForm[st.id]?.url || ""} onChange={(e) => setLF(st.id, { url: e.target.value })} placeholder="Video URL (YouTube/Drive) or uploaded file" className="sm:col-span-2 border border-zinc-300 px-2.5 py-1.5 text-sm" />
                                   <input data-testid={`lesson-duration-input-${st.id}`} value={lessonForm[st.id]?.duration || ""} onChange={(e) => setLF(st.id, { duration: e.target.value })} placeholder="Duration" className="border border-zinc-300 px-2.5 py-1.5 text-sm" />
                                   <button type="button" onClick={() => addLesson(section.id, st.id)} data-testid={`add-lesson-button-${st.id}`} className="px-3 py-1.5 text-sm font-semibold border border-zinc-300 bg-white hover:bg-zinc-100">Add lesson</button>
                                 </div>
@@ -358,11 +381,20 @@ export default function CourseDetail() {
                                     ))}
                                   </div>
                                 )}
-                                <label className="inline-flex items-center gap-2 text-xs font-semibold text-blue-700 cursor-pointer hover:underline">
-                                  <Upload className="w-3.5 h-3.5" />
-                                  {uploadingFor === st.id ? "Uploading…" : "Attach notes / PDF (max 25 MB)"}
-                                  <input type="file" data-testid={`lesson-notes-input-${st.id}`} className="hidden" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp,.txt,.pptx,.xlsx,.zip,.csv" onChange={(e) => handleNotesFile(st.id, e.target.files?.[0])} />
-                                </label>
+                                <div className="flex flex-wrap gap-4">
+                                  <label className="inline-flex items-center gap-2 text-xs font-semibold text-blue-700 cursor-pointer hover:underline">
+                                    <Upload className="w-3.5 h-3.5" />
+                                    {uploadingVideoFor === st.id
+                                      ? `Uploading video ${videoProgress[st.id] ?? 0}%…`
+                                      : "Upload video file (mp4/webm/mov, max 500 MB)"}
+                                    <input type="file" data-testid={`lesson-video-input-${st.id}`} className="hidden" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov,.m4v,.ogg" onChange={(e) => handleVideoFile(st.id, e.target.files?.[0])} />
+                                  </label>
+                                  <label className="inline-flex items-center gap-2 text-xs font-semibold text-blue-700 cursor-pointer hover:underline">
+                                    <Upload className="w-3.5 h-3.5" />
+                                    {uploadingFor === st.id ? "Uploading notes…" : "Attach notes / PDF (max 25 MB)"}
+                                    <input type="file" data-testid={`lesson-notes-input-${st.id}`} className="hidden" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp,.txt,.pptx,.xlsx,.zip,.csv" onChange={(e) => handleNotesFile(st.id, e.target.files?.[0])} />
+                                  </label>
+                                </div>
                               </div>
                             )}
                           </>

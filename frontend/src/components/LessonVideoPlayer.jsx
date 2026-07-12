@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import ReactPlayer from "react-player";
 import { AlertTriangle, ExternalLink } from "lucide-react";
 import { detectVideoProvider, toDriveEmbedUrl } from "@/lib/video";
+import { fileUrl as toAbsoluteFileUrl } from "@/lib/api";
 
 /**
  * Lesson video player: handles YouTube (react-player), Google Drive (iframe), and direct file URLs.
@@ -74,6 +75,13 @@ function InvalidLinkNotice({ url, reason }) {
           <p className="text-xs mt-1 text-amber-800">{reason}</p>
           <a href={url} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-amber-900 hover:underline">
             Open the link directly <ExternalLink className="w-3 h-3" />
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+h-3" />
           </a>
         </div>
       </div>

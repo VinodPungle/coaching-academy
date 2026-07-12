@@ -10,7 +10,8 @@ export function detectVideoProvider(url) {
   const u = url.trim().toLowerCase();
   if (u.includes("drive.google.com") || u.includes("docs.google.com")) return "drive";
   if (u.includes("youtube.com") || u.includes("youtu.be")) return "youtube";
-  if (u.startsWith("http")) return "external";
+  if (u.includes("/api/files/") || /\.(mp4|webm|mov|m4v|ogg)(\?|$)/.test(u)) return "file";
+  if (u.startsWith("http") || u.startsWith("/")) return "external";
   return "unknown";
 }
 
