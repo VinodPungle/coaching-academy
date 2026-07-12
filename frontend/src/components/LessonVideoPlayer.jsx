@@ -81,10 +81,3 @@ function InvalidLinkNotice({ url, reason }) {
     </div>
   );
 }
-h-3" />
-          </a>
-        </div>
-      </div>
-    </div>
-  );
-}

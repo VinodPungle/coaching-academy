@@ -1,10 +1,13 @@
-"""Phase 7 payments + Phase 8 portal mode.
+"""Phase 7 payments + Phase 8 portal mode + Razorpay online payments.
 
-Stripe removed. Payments are recorded manually by admin (offline / UPI). Students see a UPI QR to pay.
-Admin can grant access at their discretion (partial payments allowed with outstanding balance tracked).
-Portal mode toggle (demo vs live) lets students enrol in any course for free while in demo mode.
+- UPI: admin uploads QR + VPA; students pay offline; admin records payments.
+- Razorpay: online instant payments; auto-records payment + enrols student on signature verify.
 """
+import os
 import uuid
+import hmac
+import hashlib
+import logging
 from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends
@@ -12,6 +15,12 @@ from pydantic import BaseModel, Field
 from database import db
 from auth_utils import require_role, get_current_user
 from notify import notify, email_template
+
+logger = logging.getLogger(__name__)
+try:
+    import razorpay  # type: ignore
+except ImportError:  # graceful fallback if package not installed
+    razorpay = None
 
 router = APIRouter(tags=["payments"])
 
@@ -29,13 +38,157 @@ async def get_settings() -> dict:
 
 @router.get("/settings/public")
 async def public_settings():
-    """Endpoint any authenticated user can read (portal mode + UPI details)."""
+    """Endpoint any authenticated user can read (portal mode + UPI details + Razorpay key)."""
     s = await get_settings()
     return {
         "portal_mode": s["portal_mode"],
         "upi_qr_url": s.get("upi_qr_url", ""),
         "upi_vpa": s.get("upi_vpa", ""),
+        "razorpay_enabled": bool(os.environ.get("RAZORPAY_KEY_ID", "").strip() and os.environ.get("RAZORPAY_KEY_SECRET", "").strip()),
+        "razorpay_key_id": os.environ.get("RAZORPAY_KEY_ID", "").strip(),
     }
+
+
+def _razorpay_client():
+    if razorpay is None:
+        raise HTTPException(status_code=500, detail="Razorpay SDK not installed on server")
+    key_id = os.environ.get("RAZORPAY_KEY_ID", "").strip()
+    key_secret = os.environ.get("RAZORPAY_KEY_SECRET", "").strip()
+    if not key_id or not key_secret:
+        raise HTTPException(status_code=400, detail="Razorpay is not configured. Ask the admin to add API keys.")
+    return razorpay.Client(auth=(key_id, key_secret))
+
+
+class RazorpayOrderBody(BaseModel):
+    course_id: str
+    batch_id: Optional[str] = None
+    amount: Optional[float] = None   # if None, uses full remaining balance
+
+
+@router.post("/payments/razorpay/create-order")
+async def create_razorpay_order(body: RazorpayOrderBody, user: dict = Depends(require_role("student"))):
+    course = await db.courses.find_one({"_id": body.course_id})
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    fee = float(course.get("price", 0) or 0)
+    if fee <= 0 or course.get("is_free"):
+        raise HTTPException(status_code=400, detail="This course is free — enrol directly")
+    already_paid = await _total_paid(user["id"], body.course_id)
+    remaining = max(fee - already_paid, 0)
+    if remaining <= 0:
+        raise HTTPException(status_code=400, detail="No outstanding balance for this course")
+    amount = float(body.amount) if body.amount else remaining
+    if amount <= 0 or amount > remaining:
+        raise HTTPException(status_code=400, detail=f"Amount must be between ₹1 and ₹{remaining:.0f}")
+    client = _razorpay_client()
+    receipt = f"c_{body.course_id[:8]}_{user['id'][:8]}_{int(datetime.now(timezone.utc).timestamp())}"[:40]
+    try:
+        order = client.order.create({
+            "amount": int(round(amount * 100)),
+            "currency": "INR",
+            "receipt": receipt,
+            "notes": {
+                "course_id": body.course_id,
+                "student_id": user["id"],
+                "batch_id": body.batch_id or "",
+            },
+        })
+    except Exception as e:
+        logger.error(f"Razorpay order create failed: {e}")
+        raise HTTPException(status_code=502, detail=f"Payment gateway error: {e}")
+    await db.razorpay_orders.insert_one({
+        "_id": order["id"],
+        "student_id": user["id"],
+        "course_id": body.course_id,
+        "batch_id": body.batch_id,
+        "amount": amount,
+        "status": "created",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return {
+        "order_id": order["id"],
+        "amount": order["amount"],   # paise
+        "currency": order["currency"],
+        "razorpay_key_id": os.environ.get("RAZORPAY_KEY_ID", "").strip(),
+        "prefill": {"name": user["name"], "email": user["email"], "contact": user.get("phone") or ""},
+    }
+
+
+class RazorpayVerifyBody(BaseModel):
+    razorpay_order_id: str
+    razorpay_payment_id: str
+    razorpay_signature: str
+
+
+@router.post("/payments/razorpay/verify")
+async def verify_razorpay(body: RazorpayVerifyBody, user: dict = Depends(require_role("student"))):
+    key_secret = os.environ.get("RAZORPAY_KEY_SECRET", "").strip()
+    if not key_secret:
+        raise HTTPException(status_code=400, detail="Razorpay not configured")
+    expected = hmac.new(
+        key_secret.encode(),
+        f"{body.razorpay_order_id}|{body.razorpay_payment_id}".encode(),
+        hashlib.sha256,
+    ).hexdigest()
+    if not hmac.compare_digest(expected, body.razorpay_signature):
+        raise HTTPException(status_code=400, detail="Invalid payment signature")
+    order = await db.razorpay_orders.find_one({"_id": body.razorpay_order_id, "student_id": user["id"]})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if order["status"] == "paid":
+        return {"message": "Already recorded"}
+    course = await db.courses.find_one({"_id": order["course_id"]})
+    now = datetime.now(timezone.utc).isoformat()
+    payment_id = str(uuid.uuid4())
+    await db.payments.insert_one({
+        "_id": payment_id,
+        "student_id": user["id"],
+        "student_name": user["name"],
+        "course_id": order["course_id"],
+        "course_title": (course or {}).get("title", ""),
+        "batch_id": order.get("batch_id"),
+        "amount": order["amount"],
+        "currency": "INR",
+        "method": "razorpay",
+        "notes": f"Razorpay payment_id={body.razorpay_payment_id}",
+        "razorpay_order_id": body.razorpay_order_id,
+        "razorpay_payment_id": body.razorpay_payment_id,
+        "recorded_by": "razorpay",
+        "recorded_by_name": "Razorpay (online)",
+        "status": "paid",
+        "created_at": now,
+        "paid_at": now,
+    })
+    await db.razorpay_orders.update_one({"_id": body.razorpay_order_id}, {"$set": {"status": "paid", "payment_id": payment_id, "paid_at": now}})
+    # auto-enrol
+    total_paid = await _total_paid(user["id"], order["course_id"])
+    fee = float((course or {}).get("price", 0) or 0)
+    existing = await db.enrollments.find_one({"course_id": order["course_id"], "student_id": user["id"]})
+    granted = False
+    if not existing:
+        await db.enrollments.insert_one({
+            "_id": str(uuid.uuid4()),
+            "course_id": order["course_id"],
+            "student_id": user["id"],
+            "batch_id": order.get("batch_id"),
+            "completed_lessons": [],
+            "payment_id": payment_id,
+            "grant_reason": "razorpay" if total_paid < fee else "fully_paid",
+            "enrolled_at": now,
+        })
+        granted = True
+    subject = f"Payment received — {(course or {}).get('title', 'course')}"
+    html = email_template(subject,
+        f"Hi {user['name']},<br/>We've received your online payment of ₹{order['amount']:.0f} for <b>{(course or {}).get('title','')}</b>."
+        f"<br/>Razorpay payment id: <code>{body.razorpay_payment_id}</code>"
+        f"<br/><br/>Outstanding: ₹{max(fee - total_paid, 0):.0f}"
+    )
+    await notify(
+        [user["id"]], "Payment received", f"₹{order['amount']:.0f} received for {(course or {}).get('title','')}.",
+        f"/app/courses/{order['course_id']}",
+        email_subject=subject, email_html=html, cc_admin=True,
+    )
+    return {"message": "Payment verified", "payment_id": payment_id, "auto_enrolled": granted, "paid": total_paid, "outstanding": max(fee - total_paid, 0)}
 
 
 class SettingsBody(BaseModel):
@@ -136,6 +289,7 @@ async def admin_record_payment(body: PaymentRecordBody, user: dict = Depends(req
                 [body.student_id], "Enrolled", body_html.replace("<b>", "").replace("</b>", "").replace("<br/>", " "),
                 f"/app/courses/{body.course_id}",
                 email_subject=subject, email_html=email_template(subject, body_html),
+                cc_admin=True,
             )
     doc["id"] = doc.pop("_id")
     doc["auto_granted"] = bool(should_enroll and not body.grant_access)
@@ -192,6 +346,7 @@ async def admin_edit_payment(payment_id: str, body: PaymentEditBody, user: dict 
                     f"Enrolled in {course['title']}",
                     f"Hi {(student or {}).get('name','')},<br/>Your full payment of ₹{fee:.0f} has been received. Access to <b>{course['title']}</b> is now unlocked.",
                 ),
+                cc_admin=True,
             )
     return {"message": "Payment updated"}
 

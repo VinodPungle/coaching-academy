@@ -51,7 +51,7 @@ export default function Landing() {
             </Link>
           </div>
           <div className="mt-10 flex gap-8">
-            {[["1,200+", "Students mentored"], ["94%", "Selection rate"], ["Multi", "Exams covered"]].map(([n, l]) => (
+            {[["Self paced", "Live classes"], ["Personal", "Attention"], ["Past Questions", "Covered"]].map(([n, l]) => (
               <div key={l}>
                 <div className="font-heading text-2xl font-black">{n}</div>
                 <div className="text-xs uppercase tracking-[0.15em] text-zinc-500 mt-1">{l}</div>

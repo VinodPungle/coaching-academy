@@ -213,6 +213,14 @@ export default function CourseDetail() {
     load();
   };
 
+  const moveStudentBatch = async (studentId, newBatchId) => {
+    try {
+      await api.put(`/courses/${id}/students/${studentId}/batch`, { batch_id: newBatchId || null });
+      toast.success(newBatchId ? "Student moved to new batch" : "Student switched to self-paced");
+      load();
+    } catch (err) { toast.error(formatApiError(err)); }
+  };
+
   return (
     <div className="space-y-8">
       <Link to="/app/courses" className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-950" data-testid="back-to-courses">
@@ -427,15 +435,29 @@ export default function CourseDetail() {
                   <th className="px-5 py-3 font-semibold">Name</th>
                   <th className="px-5 py-3 font-semibold">Email</th>
                   <th className="px-5 py-3 font-semibold">Enrolled</th>
+                  <th className="px-5 py-3 font-semibold">Batch</th>
                   <th className="px-5 py-3 font-semibold">Lessons done</th>
                 </tr>
               </thead>
               <tbody>
                 {students.map((s) => (
-                  <tr key={s.id} className="border-t border-zinc-100">
+                  <tr key={s.id} className="border-t border-zinc-100" data-testid={`enrolled-student-${s.id}`}>
                     <td className="px-5 py-3 font-medium">{s.name}</td>
                     <td className="px-5 py-3 text-zinc-500">{s.email}</td>
                     <td className="px-5 py-3 text-zinc-500">{s.enrolled_at ? dayjs(s.enrolled_at).format("D MMM YYYY") : "—"}</td>
+                    <td className="px-5 py-3 text-zinc-500">
+                      <select
+                        value={s.batch_id || ""}
+                        onChange={(e) => moveStudentBatch(s.id, e.target.value)}
+                        data-testid={`move-student-batch-${s.id}`}
+                        className="border border-zinc-300 px-2 py-1 text-xs bg-white"
+                      >
+                        <option value="">Self-paced</option>
+                        {batches.map((b) => (
+                          <option key={b.id} value={b.id}>{b.name}</option>
+                        ))}
+                      </select>
+                    </td>
                     <td className="px-5 py-3 text-zinc-500">{s.completed_lessons}</td>
                   </tr>
                 ))}

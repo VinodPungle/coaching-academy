@@ -387,6 +387,7 @@ async def enroll(course_id: str, body: Optional[EnrollBody] = None, user: dict =
         f"/app/courses/{course_id}",
         email_subject=f"Welcome to {course['title']} — {ACADEMY_NAME}",
         email_html=email_template("Enrollment confirmed", f"Hi {user['name']},<br/><br/>You are now enrolled in <b>{course['title']}</b>. Head to your dashboard to start learning."),
+        cc_admin=True,
     )
     await notify([course["teacher_id"]], "New student enrolled", f"{user['name']} enrolled in {course['title']}.", f"/app/courses/{course_id}")
     return {"message": "Enrolled successfully"}

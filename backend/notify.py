@@ -87,7 +87,8 @@ async def send_whatsapp(phone: str, text: str):
 
 
 async def notify(user_ids: list, title: str, body: str, link: str = "",
-                 email_subject: str = None, email_html: str = None):
+                 email_subject: str = None, email_html: str = None,
+                 cc_admin: bool = False):
     user_ids = list(set(user_ids))
     if not user_ids:
         return
@@ -105,3 +106,8 @@ async def notify(user_ids: list, title: str, body: str, link: str = "",
             asyncio.create_task(send_email(u["email"], email_subject, email_html or email_template(title, body)))
         if u.get("phone"):
             asyncio.create_task(send_whatsapp(u["phone"], wa_text))
+    # Admin BCC on important events (new enrolment / payment received)
+    if cc_admin and email_subject:
+        admin_email = os.environ.get("ADMIN_NOTIFY_EMAIL", "").strip()
+        if admin_email:
+            asyncio.create_task(send_email(admin_email, f"[Admin] {email_subject}", email_html or email_template(title, body)))
