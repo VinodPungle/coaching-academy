@@ -1,3 +1,4 @@
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
@@ -9,6 +10,18 @@ from notify import notify
 from zoom_service import zoom_configured, create_zoom_meeting
 
 router = APIRouter(tags=["live-classes"])
+
+
+def _normalize_url(url: str) -> str:
+    """Ensure external meeting links have an http/https protocol so browsers don't treat them as relative."""
+    if not url:
+        return ""
+    trimmed = url.strip()
+    if not trimmed:
+        return ""
+    if re.match(r"^https?://", trimmed, re.IGNORECASE):
+        return trimmed
+    return f"https://{trimmed.lstrip('/')}"
 
 
 class LiveClassBody(BaseModel):
@@ -66,6 +79,7 @@ async def create_live_class(body: LiveClassBody, user: dict = Depends(require_ro
             batch_name = batch["name"]
     doc = body.model_dump()
     doc.pop("create_zoom", None)
+    doc["meeting_link"] = _normalize_url(doc.get("meeting_link", ""))
     zoom_meeting_id = None
     if body.create_zoom:
         if not zoom_configured():
@@ -142,7 +156,7 @@ async def reschedule_live_class(class_id: str, body: RescheduleBody, user: dict 
             raise HTTPException(status_code=400, detail="Duration must be between 5 and 720 minutes")
         update["duration_min"] = body.duration_min
     if body.meeting_link is not None:
-        update["meeting_link"] = body.meeting_link
+        update["meeting_link"] = _normalize_url(body.meeting_link)
     result = await db.live_classes.update_one(query, {"$set": update})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Live class not found")

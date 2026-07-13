@@ -193,6 +193,14 @@ Delivered in 11 phases with test coverage between each phase (41 backend tests +
 - Responsive header sizing across Landing, PortalLayout, AuthPage, Certificate, ForgotPassword, ResetPassword: `text-sm sm:text-base md:text-lg` to accommodate the longer name gracefully on mobile
 - Verified via curl (section rename + lesson reorder round-trip) and screenshot (buttons visible, modal opens pre-filled)
 - Rebranded to **BioExamPrep** across backend/.env (ACADEMY_NAME, ADMIN_EMAIL), frontend/.env (REACT_APP_ACADEMY_NAME), config.js, notify.py, seed.py, EnrollModal (Razorpay display name), AuthPage (demo creds text, testimonial), Landing page (header, footer), index.html title.
+
+## Phase 14 — Join Class URL Fix (Feb 2026)
+- **Bug**: Join Class button navigated to home page when `meeting_link` was stored without an `http://`/`https://` prefix (browser treated it as a relative SPA route).
+- **Fix (frontend)**: `LiveClasses.jsx` — added `normalizeUrl()` helper; both `<a href>` and `window.open` calls now prepend `https://` when the protocol is missing.
+- **Fix (backend)**: `routers/live_classes.py` — `_normalize_url()` applied on create + update paths so stored links are always valid absolute URLs.
+- **Data backfill**: idempotent one-off script ran; 0 malformed rows found in DB.
+- Verified: `POST /api/live-classes` with `"meeting_link":"meet.google.com/abc"` now stores `"https://meet.google.com/abc"`.
+
 - Email domain migration: legacy `@jamacademy.com` + `@rgpacademy.com` → `@bioexamprep.com` (idempotent startup migration in server.py; collision-safe).
 - One-time non-demo purge (server.py startup, guarded by db.system_flags.purge_non_demo_v1): kept only admin@/teacher@/student@bioexamprep.com; cascaded delete of orphan courses, tests, assignments, live classes, announcements, enrollments, attempts, submissions, notifications, certificates, payments, batches.
 - Landing hero copy updated for CSIR-NET, GATE, IIT-JAM, Life Sciences positioning.

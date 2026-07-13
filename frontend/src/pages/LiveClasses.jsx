@@ -6,6 +6,16 @@ import { toast } from "sonner";
 import { Radio, Plus, Trash2, ExternalLink, Clock, Calendar, Video, Play, Users } from "lucide-react";
 import dayjs from "dayjs";
 
+// Ensure link opens externally, not as a relative SPA route
+const normalizeUrl = (url) => {
+  if (!url) return "";
+  const trimmed = String(url).trim();
+  if (!trimmed) return "";
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  // Strip a leading slash then prepend https://
+  return `https://${trimmed.replace(/^\/+/, "")}`;
+};
+
 export default function LiveClasses() {
   const { user } = useAuth();
   const [classes, setClasses] = useState([]);
@@ -87,7 +97,7 @@ export default function LiveClasses() {
     try {
       await api.post(`/live-classes/${id}/attend`);
     } catch (err) { toast.error(formatApiError(err)); return; }
-    window.open(link, "_blank", "noopener,noreferrer");
+    window.open(normalizeUrl(link), "_blank", "noopener,noreferrer");
   };
 
   const now = new Date().toISOString();
@@ -130,7 +140,7 @@ export default function LiveClasses() {
               Join class <ExternalLink className="w-3.5 h-3.5" />
             </button>
           ) : (
-            <a href={c.meeting_link} target="_blank" rel="noreferrer" data-testid={`join-class-${c.id}`} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-blue-700 text-white hover:bg-blue-900 transition-colors">
+            <a href={normalizeUrl(c.meeting_link)} target="_blank" rel="noopener noreferrer" data-testid={`join-class-${c.id}`} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-blue-700 text-white hover:bg-blue-900 transition-colors">
               Join class <ExternalLink className="w-3.5 h-3.5" />
             </a>
           )
