@@ -16,7 +16,7 @@ const FEATURES = [
   { icon: Award, title: "Result Oriented", desc: "Curriculum reverse-engineered from years of past papers across entrance exams." },
 ];
 
-const SUBJECTS = ["Physics", "Chemistry", "Mathematics", "Biotechnology", "Economics", "Geology"];
+const SUBJECTS = ["Physics", "Chemistry", "Mathematics", "Biotechnology"];
 
 function EnquiryForm() {
   const [form, setForm] = useState({ name: "", email: "", phone: "", message: "", website: "" });
