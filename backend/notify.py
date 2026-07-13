@@ -9,7 +9,7 @@ from database import db
 
 logger = logging.getLogger(__name__)
 
-ACADEMY_NAME = os.environ.get("ACADEMY_NAME", "BioExamPrep")
+ACADEMY_NAME = os.environ.get("ACADEMY_NAME", "Academy for Life Science Exams Preparation")
 
 
 async def send_email(to: str, subject: str, html: str):

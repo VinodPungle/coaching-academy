@@ -39,7 +39,7 @@ export default function AuthPage() {
       <div className="flex flex-col px-6 py-8 md:px-16 md:py-12">
         <Link to="/" className="flex items-center gap-2 w-fit" data-testid="auth-home-link">
           <GraduationCap className="w-6 h-6 text-blue-700" />
-          <span className="font-heading font-black tracking-tight text-lg">{ACADEMY_NAME}</span>
+          <span className="font-heading font-black tracking-tight text-sm sm:text-base leading-tight">{ACADEMY_NAME}</span>
         </Link>
         <div className="flex-1 flex items-center">
           <div className="w-full max-w-sm">

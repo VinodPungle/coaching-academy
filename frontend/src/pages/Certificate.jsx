@@ -48,7 +48,7 @@ export default function Certificate() {
 
           <div className="flex items-center justify-center gap-2">
             <GraduationCap className="w-7 h-7 text-blue-700" />
-            <span className="font-heading font-black tracking-tight text-xl">{ACADEMY_NAME}</span>
+            <span className="font-heading font-black tracking-tight text-base md:text-lg leading-tight">{ACADEMY_NAME}</span>
           </div>
           <p className="mt-8 text-xs uppercase tracking-[0.35em] text-zinc-500">Certificate of Completion</p>
           <p className="mt-8 text-sm text-zinc-500">This is to certify that</p>

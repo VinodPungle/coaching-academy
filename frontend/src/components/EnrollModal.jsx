@@ -69,7 +69,7 @@ export default function EnrollModal({ course, batches: batchesProp, onClose, onS
         amount: order.amount,
         currency: order.currency,
         order_id: order.order_id,
-        name: "BioExamPrep",
+        name: "Academy for Life Science Exams Preparation",
         description: course.title,
         prefill: order.prefill,
         theme: { color: "#1D4ED8" },

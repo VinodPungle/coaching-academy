@@ -26,6 +26,11 @@ export default function CourseDetail() {
   const [expandedSubTopics, setExpandedSubTopics] = useState({});
   const [subTopicForm, setSubTopicForm] = useState({}); // { sectionId: {title} }
   const [renamingSubTopic, setRenamingSubTopic] = useState(null); // {sectionId, id, title}
+  const [renamingSection, setRenamingSection] = useState(null); // {id, title}
+  const [editingLesson, setEditingLesson] = useState(null); // {id, title, url, duration, notes, sectionId, subTopicId}
+  const [lessonEditUploadingNotes, setLessonEditUploadingNotes] = useState(false);
+  const [lessonEditUploadingVideo, setLessonEditUploadingVideo] = useState(false);
+  const [lessonEditVideoProgress, setLessonEditVideoProgress] = useState(0);
   const [lessonForm, setLessonForm] = useState({}); // { subTopicId: {title, url, duration, notes: []} }
   const [uploadingFor, setUploadingFor] = useState(null);
   const [uploadingVideoFor, setUploadingVideoFor] = useState(null);
@@ -75,6 +80,18 @@ export default function CourseDetail() {
     try {
       await api.delete(`/courses/${id}/sections/${sid}`);
       toast.success("Section deleted");
+      load();
+    } catch (err) { toast.error(formatApiError(err)); }
+  };
+
+  const renameSection = async () => {
+    if (!renamingSection) return;
+    const title = (renamingSection.title || "").trim();
+    if (!title) { setRenamingSection(null); return; }
+    try {
+      await api.put(`/courses/${id}/sections/${renamingSection.id}`, { title });
+      setRenamingSection(null);
+      toast.success("Section renamed");
       load();
     } catch (err) { toast.error(formatApiError(err)); }
   };
@@ -196,6 +213,76 @@ export default function CourseDetail() {
     } catch (err) { toast.error(formatApiError(err)); }
   };
 
+  const reorderLesson = async (sid, stid, lessons, fromIdx, direction) => {
+    const swapWith = direction === "up" ? fromIdx - 1 : fromIdx + 1;
+    if (swapWith < 0 || swapWith >= lessons.length) return;
+    const newOrder = [...lessons];
+    [newOrder[fromIdx], newOrder[swapWith]] = [newOrder[swapWith], newOrder[fromIdx]];
+    try {
+      await api.put(
+        `/courses/${id}/sections/${sid}/sub-topics/${stid}/lessons/reorder`,
+        { lesson_ids: newOrder.map((l) => l.id) }
+      );
+      load();
+    } catch (err) { toast.error(formatApiError(err)); }
+  };
+
+  const openLessonEditor = (sectionId, subTopicId, lesson) => {
+    setEditingLesson({
+      sectionId,
+      subTopicId,
+      id: lesson.id,
+      title: lesson.title || "",
+      url: lesson.url || "",
+      duration: lesson.duration || "",
+      notes: Array.isArray(lesson.notes) ? [...lesson.notes] : [],
+    });
+  };
+
+  const saveLessonEdit = async () => {
+    if (!editingLesson) return;
+    const { id: lid, title, url, duration, notes } = editingLesson;
+    if (!title.trim()) return toast.error("Lesson title required");
+    if (!url.trim() && !(notes || []).length) return toast.error("Add either a video URL or at least one notes file");
+    try {
+      await api.put(`/courses/${id}/lessons/${lid}`, {
+        title: title.trim(),
+        url: url.trim(),
+        duration: duration.trim(),
+        notes: (notes || []).map((n) => ({ title: n.title, url: n.url })),
+      });
+      setEditingLesson(null);
+      toast.success("Lesson updated");
+      load();
+    } catch (err) { toast.error(formatApiError(err)); }
+  };
+
+  const handleEditLessonNotesUpload = async (file) => {
+    if (!file || !editingLesson) return;
+    setLessonEditUploadingNotes(true);
+    try {
+      const res = await uploadFile(file);
+      setEditingLesson((prev) => ({ ...prev, notes: [...(prev.notes || []), { title: res.filename, url: res.url }] }));
+      toast.success(`Uploaded ${res.filename}`);
+    } catch (err) { toast.error(formatApiError(err)); }
+    finally { setLessonEditUploadingNotes(false); }
+  };
+
+  const handleEditLessonVideoUpload = async (file) => {
+    if (!file || !editingLesson) return;
+    const videoExts = /\.(mp4|webm|mov|m4v|ogg)$/i;
+    if (!videoExts.test(file.name)) return toast.error("Please choose an mp4/webm/mov/m4v/ogg video file");
+    if (file.size > 500 * 1024 * 1024) return toast.error("Video too large (max 500 MB).");
+    setLessonEditUploadingVideo(true);
+    setLessonEditVideoProgress(0);
+    try {
+      const res = await uploadFile(file, (pct) => setLessonEditVideoProgress(pct));
+      setEditingLesson((prev) => ({ ...prev, url: res.url }));
+      toast.success(`Uploaded ${res.filename}`);
+    } catch (err) { toast.error(formatApiError(err)); }
+    finally { setLessonEditUploadingVideo(false); setLessonEditVideoProgress(0); }
+  };
+
   const addBatch = async (e) => {
     e.preventDefault();
     if (!batchForm.name.trim()) return;
@@ -289,18 +376,39 @@ export default function CourseDetail() {
         {course.sections.map((section, si) => {
           const sectionOpen = expandedSections[section.id] !== false; // default open
           const subTopics = [...section.sub_topics].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+          const isRenamingThis = renamingSection?.id === section.id;
           return (
             <div key={section.id} className="border border-zinc-200" data-testid={`section-${section.id}`}>
-              <button onClick={() => toggleSection(section.id)} className="w-full flex items-center gap-2 px-5 py-3 bg-zinc-50 border-b border-zinc-200 text-left" data-testid={`section-toggle-${section.id}`}>
-                {sectionOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                <span className="font-semibold text-sm flex-1">{si + 1}. {section.title}</span>
-                <span className="text-xs text-zinc-400">{subTopics.length} sub-topics · {subTopics.reduce((n, st) => n + st.lessons.length, 0)} lessons</span>
-                {isOwner && (
-                  <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); deleteSection(section.id); }} data-testid={`delete-section-${section.id}`} className="p-1.5 text-zinc-400 hover:text-red-600 cursor-pointer">
-                    <Trash2 className="w-4 h-4" />
-                  </span>
+              <div className="w-full flex items-center gap-2 px-5 py-3 bg-zinc-50 border-b border-zinc-200 text-left">
+                <button onClick={() => toggleSection(section.id)} data-testid={`section-toggle-${section.id}`} className="flex items-center gap-2 flex-1 min-w-0 text-left">
+                  {sectionOpen ? <ChevronDown className="w-4 h-4 shrink-0" /> : <ChevronRight className="w-4 h-4 shrink-0" />}
+                  {isRenamingThis ? (
+                    <input
+                      autoFocus
+                      value={renamingSection.title}
+                      onChange={(e) => setRenamingSection({ ...renamingSection, title: e.target.value })}
+                      onKeyDown={(e) => { if (e.key === "Enter") renameSection(); if (e.key === "Escape") setRenamingSection(null); }}
+                      onClick={(e) => e.stopPropagation()}
+                      onBlur={renameSection}
+                      data-testid={`section-rename-input-${section.id}`}
+                      className="border-b border-blue-700 text-sm font-semibold bg-transparent focus:outline-none px-1 flex-1"
+                    />
+                  ) : (
+                    <span className="font-semibold text-sm flex-1 truncate">{si + 1}. {section.title}</span>
+                  )}
+                  <span className="text-xs text-zinc-400 shrink-0">{subTopics.length} sub-topics · {subTopics.reduce((n, st) => n + st.lessons.length, 0)} lessons</span>
+                </button>
+                {isOwner && !isRenamingThis && (
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    <button title="Rename section" onClick={(e) => { e.stopPropagation(); setRenamingSection({ id: section.id, title: section.title }); }} data-testid={`section-edit-${section.id}`} className="p-1.5 text-zinc-400 hover:text-zinc-950">
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button title="Delete section" onClick={(e) => { e.stopPropagation(); deleteSection(section.id); }} data-testid={`delete-section-${section.id}`} className="p-1.5 text-zinc-400 hover:text-red-600">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 )}
-              </button>
+              </div>
               {sectionOpen && (
                 <>
                   {subTopics.map((st, sti) => {
@@ -341,7 +449,7 @@ export default function CourseDetail() {
                         {stOpen && (
                           <>
                             {st.lessons.length === 0 && <p className="px-8 py-3 text-xs text-zinc-400">No lessons yet.</p>}
-                            {st.lessons.map((lesson) => {
+                            {st.lessons.map((lesson, li) => {
                               const done = course.completed_lessons?.includes(lesson.id);
                               const hasVideo = Boolean(lesson.url);
                               const hasNotes = (lesson.notes || []).length > 0;
@@ -359,9 +467,12 @@ export default function CourseDetail() {
                                     </span>
                                   </div>
                                   {isOwner && (
-                                    <button onClick={() => deleteLesson(lesson.id)} data-testid={`delete-lesson-${lesson.id}`} className="p-1 text-zinc-400 hover:text-red-600" title="Delete lesson">
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
+                                    <div className="flex items-center gap-0.5 shrink-0">
+                                      <button title="Move up" disabled={li === 0} onClick={() => reorderLesson(section.id, st.id, st.lessons, li, "up")} data-testid={`lesson-up-${lesson.id}`} className="p-1 text-zinc-400 hover:text-zinc-950 disabled:opacity-20"><GripVertical className="w-3.5 h-3.5 -rotate-90" /></button>
+                                      <button title="Move down" disabled={li === st.lessons.length - 1} onClick={() => reorderLesson(section.id, st.id, st.lessons, li, "down")} data-testid={`lesson-down-${lesson.id}`} className="p-1 text-zinc-400 hover:text-zinc-950 disabled:opacity-20"><GripVertical className="w-3.5 h-3.5 rotate-90" /></button>
+                                      <button title="Edit lesson" onClick={() => openLessonEditor(section.id, st.id, lesson)} data-testid={`edit-lesson-${lesson.id}`} className="p-1 text-zinc-400 hover:text-zinc-950"><Edit2 className="w-3.5 h-3.5" /></button>
+                                      <button title="Delete lesson" onClick={() => deleteLesson(lesson.id)} data-testid={`delete-lesson-${lesson.id}`} className="p-1 text-zinc-400 hover:text-red-600"><Trash2 className="w-3.5 h-3.5" /></button>
+                                    </div>
                                   )}
                                   {!isOwner && course.enrolled && (
                                     <button onClick={() => toggleComplete(lesson.id)} data-testid={`complete-lesson-${lesson.id}`} title={done ? "Completed" : "Mark complete"}>
@@ -525,6 +636,97 @@ export default function CourseDetail() {
 
       {showEnroll && (
         <EnrollModal course={course} batches={batches} onClose={() => setShowEnroll(false)} onDone={() => { setShowEnroll(false); load(); }} />
+      )}
+
+      {editingLesson && (
+        <div className="fixed inset-0 z-50 bg-zinc-950/60 flex items-center justify-center p-4" data-testid="lesson-edit-modal" onClick={() => setEditingLesson(null)}>
+          <div className="bg-white w-full max-w-2xl border border-zinc-200 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200">
+              <h3 className="font-heading font-bold text-lg">Edit lesson</h3>
+              <button onClick={() => setEditingLesson(null)} data-testid="lesson-edit-close" className="text-zinc-400 hover:text-zinc-950">×</button>
+            </div>
+            <div className="px-6 py-5 space-y-4 max-h-[70vh] overflow-y-auto">
+              <div>
+                <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Lesson title</label>
+                <input
+                  data-testid="lesson-edit-title"
+                  value={editingLesson.title}
+                  onChange={(e) => setEditingLesson({ ...editingLesson, title: e.target.value })}
+                  className="mt-1.5 w-full border border-zinc-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-700"
+                />
+              </div>
+              <div className="grid sm:grid-cols-[1fr_140px] gap-3">
+                <div>
+                  <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Video URL</label>
+                  <input
+                    data-testid="lesson-edit-url"
+                    value={editingLesson.url}
+                    onChange={(e) => setEditingLesson({ ...editingLesson, url: e.target.value })}
+                    placeholder="YouTube / Drive / uploaded video URL"
+                    className="mt-1.5 w-full border border-zinc-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-700"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Duration</label>
+                  <input
+                    data-testid="lesson-edit-duration"
+                    value={editingLesson.duration}
+                    onChange={(e) => setEditingLesson({ ...editingLesson, duration: e.target.value })}
+                    placeholder="45 min"
+                    className="mt-1.5 w-full border border-zinc-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-700"
+                  />
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-4">
+                <label className="inline-flex items-center gap-2 text-xs font-semibold text-blue-700 cursor-pointer hover:underline">
+                  <Upload className="w-3.5 h-3.5" />
+                  {lessonEditUploadingVideo ? `Uploading video ${lessonEditVideoProgress}%…` : "Replace video (mp4/webm/mov, max 500 MB)"}
+                  <input type="file" data-testid="lesson-edit-video-input" className="hidden" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov,.m4v,.ogg" onChange={(e) => handleEditLessonVideoUpload(e.target.files?.[0])} />
+                </label>
+                <label className="inline-flex items-center gap-2 text-xs font-semibold text-blue-700 cursor-pointer hover:underline">
+                  <Upload className="w-3.5 h-3.5" />
+                  {lessonEditUploadingNotes ? "Uploading notes…" : "Attach notes / PDF (max 25 MB)"}
+                  <input type="file" data-testid="lesson-edit-notes-input" className="hidden" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp,.txt,.pptx,.xlsx,.zip,.csv" onChange={(e) => handleEditLessonNotesUpload(e.target.files?.[0])} />
+                </label>
+              </div>
+              <div>
+                <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Notes attached</label>
+                {(editingLesson.notes || []).length === 0 ? (
+                  <p className="mt-2 text-xs text-zinc-400">No notes attached.</p>
+                ) : (
+                  <ul className="mt-2 space-y-1.5" data-testid="lesson-edit-notes-list">
+                    {editingLesson.notes.map((n, ni) => (
+                      <li key={ni} className="flex items-center gap-2 border border-zinc-200 px-3 py-2 text-sm">
+                        <FileText className="w-3.5 h-3.5 text-red-600" />
+                        <input
+                          value={n.title}
+                          onChange={(e) => {
+                            const notes = [...editingLesson.notes];
+                            notes[ni] = { ...notes[ni], title: e.target.value };
+                            setEditingLesson({ ...editingLesson, notes });
+                          }}
+                          data-testid={`lesson-edit-note-title-${ni}`}
+                          className="flex-1 text-sm border-none focus:outline-none bg-transparent"
+                        />
+                        <a href={fileUrl(n.url)} target="_blank" rel="noreferrer" className="text-xs text-blue-700 hover:underline">Open</a>
+                        <button
+                          type="button"
+                          onClick={() => setEditingLesson({ ...editingLesson, notes: editingLesson.notes.filter((_, i) => i !== ni) })}
+                          data-testid={`lesson-edit-note-remove-${ni}`}
+                          className="text-zinc-400 hover:text-red-600 text-xs"
+                        >×</button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-zinc-200 bg-zinc-50">
+              <button onClick={() => setEditingLesson(null)} data-testid="lesson-edit-cancel" className="px-4 py-2 text-sm font-semibold border border-zinc-300 hover:bg-zinc-100">Cancel</button>
+              <button onClick={saveLessonEdit} data-testid="lesson-edit-save" className="px-4 py-2 text-sm font-semibold bg-blue-700 text-white hover:bg-blue-900">Save changes</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

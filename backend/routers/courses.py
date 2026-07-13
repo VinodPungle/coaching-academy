@@ -34,6 +34,10 @@ class SubTopicReorderBody(BaseModel):
     sub_topic_ids: List[str]
 
 
+class LessonReorderBody(BaseModel):
+    lesson_ids: List[str]
+
+
 class EnrollBody(BaseModel):
     batch_id: Optional[str] = None
 
@@ -148,6 +152,19 @@ async def add_section(course_id: str, body: SectionBody, user: dict = Depends(re
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Course not found")
     return section
+
+
+@router.put("/courses/{course_id}/sections/{section_id}")
+async def rename_section(course_id: str, section_id: str, body: SectionBody, user: dict = Depends(require_role("teacher", "admin"))):
+    if not body.title.strip():
+        raise HTTPException(status_code=400, detail="Section title is required")
+    result = await db.courses.update_one(
+        {"_id": course_id, "teacher_id": user["id"], "sections.id": section_id},
+        {"$set": {"sections.$.title": body.title.strip()}},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Course or section not found")
+    return {"message": "Section renamed"}
 
 
 @router.delete("/courses/{course_id}/sections/{section_id}")
@@ -293,6 +310,28 @@ async def update_lesson(course_id: str, lesson_id: str, body: LessonBody, user: 
         raise HTTPException(status_code=404, detail="Lesson not found")
     await db.courses.update_one({"_id": course_id}, {"$set": {"sections": course["sections"]}})
     return {"message": "Lesson updated"}
+
+
+@router.put("/courses/{course_id}/sections/{section_id}/sub-topics/{sub_topic_id}/lessons/reorder")
+async def reorder_lessons(course_id: str, section_id: str, sub_topic_id: str, body: LessonReorderBody, user: dict = Depends(require_role("teacher", "admin"))):
+    course = await db.courses.find_one({"_id": course_id, "teacher_id": user["id"]})
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    for section in course.get("sections", []):
+        if section["id"] != section_id:
+            continue
+        for st in section.get("sub_topics", []):
+            if st["id"] != sub_topic_id:
+                continue
+            by_id = {l["id"]: l for l in st.get("lessons", [])}
+            reordered = [by_id[lid] for lid in body.lesson_ids if lid in by_id]
+            # append any lessons that were not included at the end (safety)
+            reordered.extend([l for l in st.get("lessons", []) if l["id"] not in body.lesson_ids])
+            st["lessons"] = reordered
+            await db.courses.update_one({"_id": course_id}, {"$set": {"sections": course["sections"]}})
+            return {"message": "Lessons reordered"}
+        raise HTTPException(status_code=404, detail="Sub topic not found")
+    raise HTTPException(status_code=404, detail="Section not found")
 
 
 @router.delete("/courses/{course_id}/lessons/{lesson_id}")

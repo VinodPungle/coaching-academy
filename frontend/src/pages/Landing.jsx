@@ -141,7 +141,7 @@ export default function Landing() {
         <div className="max-w-6xl mx-auto flex items-center justify-between px-4 md:px-8 h-16">
           <div className="flex items-center gap-2">
             <GraduationCap className="w-7 h-7 text-blue-700" />
-            <span className="font-heading font-black tracking-tight text-xl">{ACADEMY_NAME}</span>
+            <span className="font-heading font-black tracking-tight text-sm sm:text-base md:text-lg leading-tight">{ACADEMY_NAME}</span>
           </div>
           <div className="flex items-center gap-3">
             <a href="#contact" data-testid="header-contact-link" className="hidden sm:inline text-sm font-semibold text-zinc-600 hover:text-zinc-950 px-2 py-2 transition-colors">

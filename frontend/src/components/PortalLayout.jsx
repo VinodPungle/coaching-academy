@@ -41,7 +41,7 @@ export default function PortalLayout() {
       <aside className="hidden md:flex w-60 flex-col border-r border-zinc-200 bg-zinc-50 fixed inset-y-0">
         <div className="flex items-center gap-2 px-5 h-16 border-b border-zinc-200">
           <GraduationCap className="w-6 h-6 text-blue-700" />
-          <span className="font-heading font-black tracking-tight text-lg">{ACADEMY_NAME}</span>
+          <span className="font-heading font-black tracking-tight text-sm sm:text-base leading-tight">{ACADEMY_NAME}</span>
         </div>
         <nav className="flex-1 py-4 space-y-0.5">
           {nav.map(({ to, label, icon: Icon, testid }) => (

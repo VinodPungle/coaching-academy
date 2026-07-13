@@ -174,6 +174,24 @@ Delivered in 11 phases with test coverage between each phase (41 backend tests +
 - Credentials in /app/memory/test_credentials.md; all seeded users now use @bioexamprep.com.
 
 ## Phase 12 — Rebrand to BioExamPrep, DB Purge, Enquiry Form (Feb 2026)
+- Rebranded to **BioExamPrep** across backend/.env, frontend/.env, config.js, notify.py, seed.py, EnrollModal, AuthPage, Landing page, index.html title.
+- Email domain migration: legacy `@jamacademy.com` + `@rgpacademy.com` → `@bioexamprep.com` (idempotent startup migration in server.py; collision-safe).
+- One-time non-demo purge (server.py startup, guarded by db.system_flags.purge_non_demo_v1): kept only admin@/teacher@/student@bioexamprep.com and cascaded delete of orphan content.
+- New Contact section on landing page (email/phone/website) + Enquiry form + backend endpoint `POST /api/enquiries` with honeypot, rate limit, pydantic validation. Sends via Resend.
+- Footer cleanup: removed User Manual, Architecture, Developer Guide links.
+
+## Phase 13 — Teacher Curriculum Editing + Long Brand Name (Feb 2026)
+- Backend endpoints added in `/app/backend/routers/courses.py`:
+  - `PUT /api/courses/{course_id}/sections/{section_id}` — rename section (teacher/admin)
+  - `PUT /api/courses/{course_id}/sections/{section_id}/sub-topics/{sub_topic_id}/lessons/reorder` — reorder lessons within a sub-topic
+- Existing `PUT /api/courses/{course_id}/lessons/{lesson_id}` already supports full lesson edit (title, url, duration, notes)
+- Frontend `/app/frontend/src/pages/CourseDetail.jsx`:
+  - **Section rename**: inline-editable title with pencil button (analogous to sub-topic rename), Enter to save / Escape to cancel / blur commits
+  - **Lesson Move Up / Move Down**: owner-only arrow buttons per lesson, disabled at boundaries
+  - **Edit Lesson modal**: title, video URL, duration; replace-video upload (mp4/webm/mov, 500 MB max); attach-notes upload (25 MB max); edit note titles; remove notes
+- Brand renamed to **"Academy for Life Science Exams Preparation"**: backend/.env `ACADEMY_NAME`, frontend/.env `REACT_APP_ACADEMY_NAME`, notify.py default, config.js default, `index.html` title, EnrollModal Razorpay display
+- Responsive header sizing across Landing, PortalLayout, AuthPage, Certificate, ForgotPassword, ResetPassword: `text-sm sm:text-base md:text-lg` to accommodate the longer name gracefully on mobile
+- Verified via curl (section rename + lesson reorder round-trip) and screenshot (buttons visible, modal opens pre-filled)
 - Rebranded to **BioExamPrep** across backend/.env (ACADEMY_NAME, ADMIN_EMAIL), frontend/.env (REACT_APP_ACADEMY_NAME), config.js, notify.py, seed.py, EnrollModal (Razorpay display name), AuthPage (demo creds text, testimonial), Landing page (header, footer), index.html title.
 - Email domain migration: legacy `@jamacademy.com` + `@rgpacademy.com` → `@bioexamprep.com` (idempotent startup migration in server.py; collision-safe).
 - One-time non-demo purge (server.py startup, guarded by db.system_flags.purge_non_demo_v1): kept only admin@/teacher@/student@bioexamprep.com; cascaded delete of orphan courses, tests, assignments, live classes, announcements, enrollments, attempts, submissions, notifications, certificates, payments, batches.
