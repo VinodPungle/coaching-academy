@@ -100,19 +100,27 @@ export default function LiveClasses() {
     window.open(normalizeUrl(link), "_blank", "noopener,noreferrer");
   };
 
-  const now = new Date().toISOString();
-  const upcoming = classes.filter((c) => c.start_time >= now);
-  const past = classes.filter((c) => c.start_time < now);
+  // A class is "in progress" during [start_time, start_time + duration_min].
+  // It moves to "past" only after the full duration has elapsed.
+  const nowMs = Date.now();
+  const classEndMs = (c) => new Date(c.start_time).getTime() + (Number(c.duration_min) || 0) * 60_000;
+  const isInProgress = (c) => new Date(c.start_time).getTime() <= nowMs && nowMs < classEndMs(c);
+  const isUpcomingOrLive = (c) => classEndMs(c) > nowMs;
+  const upcoming = classes.filter(isUpcomingOrLive);
+  const past = classes.filter((c) => classEndMs(c) <= nowMs);
 
-  const ClassRow = ({ c, isPast }) => (
+  const ClassRow = ({ c, isPast }) => {
+    const live = !isPast && isInProgress(c);
+    return (
     <div className="border border-zinc-200 p-5 flex flex-col sm:flex-row sm:items-center gap-4 hover:border-zinc-300 transition-colors" data-testid={`live-class-${c.id}`}>
-      <div className={`shrink-0 w-12 h-12 flex items-center justify-center ${isPast ? "bg-zinc-100 text-zinc-400" : "bg-red-50 text-red-600"}`}>
+      <div className={`shrink-0 w-12 h-12 flex items-center justify-center ${isPast ? "bg-zinc-100 text-zinc-400" : live ? "bg-red-600 text-white animate-pulse" : "bg-red-50 text-red-600"}`}>
         <Radio className="w-5 h-5" />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs uppercase tracking-[0.15em] font-semibold text-blue-700">{c.subject}</span>
-          {!isPast && <span className="text-[10px] uppercase tracking-[0.15em] font-bold bg-red-600 text-white px-1.5 py-0.5">Upcoming</span>}
+          {live && <span data-testid={`class-live-badge-${c.id}`} className="text-[10px] uppercase tracking-[0.15em] font-bold bg-red-600 text-white px-1.5 py-0.5 animate-pulse">Live now</span>}
+          {!isPast && !live && <span className="text-[10px] uppercase tracking-[0.15em] font-bold bg-red-600 text-white px-1.5 py-0.5">Upcoming</span>}
           {c.course_name ? (
             <span className="text-[10px] uppercase tracking-[0.1em] font-bold bg-zinc-950 text-white px-1.5 py-0.5" data-testid={`class-scope-badge-${c.id}`}>
               {c.course_name}{c.batch_name ? ` · ${c.batch_name}` : ""}
@@ -165,7 +173,8 @@ export default function LiveClasses() {
         )}
       </div>
     </div>
-  );
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -239,7 +248,7 @@ export default function LiveClasses() {
       )}
 
       <div className="space-y-3">
-        {upcoming.length === 0 && <p className="text-sm text-zinc-500" data-testid="no-upcoming-classes">No upcoming live classes.</p>}
+        {upcoming.length === 0 && <p className="text-sm text-zinc-500" data-testid="no-upcoming-classes">No upcoming or live classes.</p>}
         {upcoming.map((c) => <ClassRow key={c.id} c={c} isPast={false} />)}
       </div>
       {past.length > 0 && (

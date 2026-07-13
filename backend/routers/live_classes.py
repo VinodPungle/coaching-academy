@@ -85,7 +85,7 @@ async def create_live_class(body: LiveClassBody, user: dict = Depends(require_ro
         if not zoom_configured():
             raise HTTPException(status_code=400, detail="Zoom is not configured yet. Add Zoom credentials in backend settings or paste a meeting link manually.")
         meeting = await create_zoom_meeting(body.title, body.start_time, body.duration_min)
-        doc["meeting_link"] = meeting["join_url"]
+        doc["meeting_link"] = _normalize_url(meeting["join_url"])
         zoom_meeting_id = meeting.get("id")
     doc.update({
         "_id": str(uuid.uuid4()),

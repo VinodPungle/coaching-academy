@@ -208,6 +208,17 @@ Delivered in 11 phases with test coverage between each phase (41 backend tests +
 - New Enquiry form + backend endpoint POST /api/enquiries:
   - Fields: name, email, phone, message + hidden honeypot (`website`)
   - Validation: pydantic EmailStr, regex phone check, min-length name/message
+
+## Phase 15 — Live Class In-Progress Window (Feb 2026)
+- **Behaviour change**: a live class stays joinable during `[start_time, start_time + duration_min]` window instead of flipping to "past" the instant `start_time` passes.
+- `LiveClasses.jsx`: replaced `start_time`-based split with duration-aware split (`classEndMs = start + duration_min*60_000`). Added `isInProgress()` helper. In-progress classes now render:
+  - Pulsing red radio icon
+  - New **LIVE NOW** badge (`data-testid="class-live-badge-{id}"`)
+  - Join Class button remains active for both students and teachers
+- Empty-state text: "No upcoming or live classes."
+- Bug hardening: Zoom-generated `join_url` also passed through `_normalize_url()` on backend before storage.
+- Verified in browser: an in-progress class shows "LIVE NOW" badge + Join Class button; `href` is a fully-qualified `https://…` URL that opens externally.
+
   - Anti-spam: honeypot silent-accept, IP rate limit 3/hour (in-memory)
   - Storage: db.enquiries + fire-and-forget Resend email to ADMIN_NOTIFY_EMAIL (contact@bioexamprep.com)
   - New router: /app/backend/routers/enquiries.py
