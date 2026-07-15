@@ -93,7 +93,7 @@ export default function TestBuilder() {
         <div>
           <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Subject</label>
           <select data-testid="test-subject-select" value={meta.subject} onChange={(e) => setMeta({ ...meta, subject: e.target.value })} className="mt-1 w-full border border-zinc-300 px-3 py-2 text-sm bg-white">
-            {["Physics", "Chemistry", "Mathematics", "Biotechnology", "Economics", "Geology"].map((s) => <option key={s}>{s}</option>)}
+            {["Physics", "Chemistry", "Mathematics", "Biotechnology"].map((s) => <option key={s}>{s}</option>)}
           </select>
         </div>
         <div>

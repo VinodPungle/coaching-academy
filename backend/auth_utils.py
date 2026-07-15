@@ -62,3 +62,28 @@ def require_role(*roles):
             raise HTTPException(status_code=403, detail="Not authorized for this action")
         return user
     return checker
+
+
+async def optional_user(request: Request) -> dict | None:
+    """Same as get_current_user but returns None if not authenticated instead of raising."""
+    try:
+        return await get_current_user(request)
+    except HTTPException:
+        return None
+
+
+DEMO_TEACHER_EMAIL = "teacher@bioexamprep.com"
+DEMO_STUDENT_EMAIL = "student@bioexamprep.com"
+
+
+def is_demo_teacher_email(email: str) -> bool:
+    return (email or "").lower() == DEMO_TEACHER_EMAIL
+
+
+def can_see_demo_content(user: dict | None) -> bool:
+    """Admin + demo student see demo content. Everyone else does not."""
+    if not user:
+        return False
+    if user.get("role") == "admin":
+        return True
+    return (user.get("email") or "").lower() == DEMO_STUDENT_EMAIL

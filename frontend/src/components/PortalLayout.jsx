@@ -1,9 +1,9 @@
 import { NavLink, useNavigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { useSiteConfig } from "@/context/SiteConfigContext";
 import { NotificationsBell } from "@/components/NotificationsBell";
-import { ACADEMY_NAME } from "@/lib/config";
 import {
-  LayoutDashboard, BookOpen, Radio, FileQuestion, ClipboardList, Megaphone, LogOut, GraduationCap, Users, IndianRupee, Trophy, Settings, UserCheck,
+  LayoutDashboard, BookOpen, Radio, FileQuestion, ClipboardList, Megaphone, LogOut, GraduationCap, Users, IndianRupee, Trophy, Settings, UserCheck, FileText, IdCard,
 } from "lucide-react";
 
 const NAV = [
@@ -15,21 +15,28 @@ const NAV = [
   { to: "/app/announcements", label: "Announcements", icon: Megaphone, testid: "nav-announcements" },
 ];
 
+const TEACHER_EXTRAS = [
+  { to: "/app/my-profile", label: "My Profile", icon: IdCard, testid: "nav-my-profile" },
+];
+
 const ADMIN_NAV = [
   { to: "/app/dashboard", label: "Dashboard", icon: LayoutDashboard, testid: "nav-dashboard" },
   { to: "/app/teachers", label: "Teachers", icon: GraduationCap, testid: "nav-teachers" },
+  { to: "/app/teacher-profiles", label: "Teacher Profiles", icon: IdCard, testid: "nav-teacher-profiles" },
   { to: "/app/top-performers", label: "Top Performers", icon: Trophy, testid: "nav-top-performers" },
   { to: "/app/users", label: "Users", icon: Users, testid: "nav-users" },
   { to: "/app/enrollments", label: "Enrollments", icon: UserCheck, testid: "nav-enrollments" },
   { to: "/app/payments", label: "Payments", icon: IndianRupee, testid: "nav-payments" },
   { to: "/app/settings", label: "Settings", icon: Settings, testid: "nav-settings" },
+  { to: "/app/site-content", label: "Site Content", icon: FileText, testid: "nav-site-content" },
   { to: "/app/announcements", label: "Announcements", icon: Megaphone, testid: "nav-announcements" },
 ];
 
 export default function PortalLayout() {
   const { user, logout } = useAuth();
+  const { brand_name } = useSiteConfig();
   const navigate = useNavigate();
-  const nav = user?.role === "admin" ? ADMIN_NAV : NAV;
+  const nav = user?.role === "admin" ? ADMIN_NAV : (user?.role === "teacher" ? [...NAV, ...TEACHER_EXTRAS] : NAV);
 
   const handleLogout = async () => {
     await logout();
@@ -41,7 +48,7 @@ export default function PortalLayout() {
       <aside className="hidden md:flex w-60 flex-col border-r border-zinc-200 bg-zinc-50 fixed inset-y-0">
         <div className="flex items-center gap-2 px-5 h-16 border-b border-zinc-200">
           <GraduationCap className="w-6 h-6 text-blue-700" />
-          <span className="font-heading font-black tracking-tight text-sm sm:text-base leading-tight">{ACADEMY_NAME}</span>
+          <span className="font-heading font-black tracking-tight text-sm sm:text-base leading-tight">{brand_name}</span>
         </div>
         <nav className="flex-1 py-4 space-y-0.5">
           {nav.map(({ to, label, icon: Icon, testid }) => (
@@ -76,7 +83,7 @@ export default function PortalLayout() {
       </aside>
 
       <div className="md:hidden fixed top-0 inset-x-0 z-40 flex items-center justify-between border-b border-zinc-200 bg-white/80 backdrop-blur-xl px-4 h-14">
-        <span className="font-heading font-black">{ACADEMY_NAME}</span>
+        <span className="font-heading font-black">{brand_name}</span>
         <button onClick={handleLogout} data-testid="mobile-logout-button" className="text-sm font-medium text-zinc-600">
           Log out
         </button>

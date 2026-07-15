@@ -4,7 +4,7 @@ from typing import List, Dict, Optional
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from database import db
-from auth_utils import get_current_user, require_role
+from auth_utils import get_current_user, require_role, is_demo_teacher_email, can_see_demo_content
 
 router = APIRouter(tags=["tests"])
 
@@ -71,7 +71,10 @@ async def list_tests(user: dict = Depends(get_current_user)):
             result.append(d)
         return result
     my_courses = await enrolled_course_ids(user["id"])
-    docs = await db.tests.find({"published": True, "course_id": {"$in": [None, *my_courses]}}).sort("created_at", -1).to_list(200)
+    query = {"published": True, "course_id": {"$in": [None, *my_courses]}}
+    if not can_see_demo_content(user):
+        query["demo_scope"] = {"$ne": True}
+    docs = await db.tests.find(query).sort("created_at", -1).to_list(200)
     my_attempts = {
         a["test_id"]: a
         for a in await db.test_attempts.find({"student_id": user["id"]}).to_list(500)
@@ -118,6 +121,7 @@ async def create_test(body: TestBody, user: dict = Depends(require_role("teacher
         "total_marks": sum(q["marks"] for q in questions),
         "teacher_id": user["id"],
         "teacher_name": user["name"],
+        "demo_scope": is_demo_teacher_email(user.get("email", "")),
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.tests.insert_one(doc)

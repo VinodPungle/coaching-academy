@@ -4,7 +4,7 @@ from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from database import db
-from auth_utils import get_current_user, require_role
+from auth_utils import get_current_user, optional_user, require_role, can_see_demo_content, is_demo_teacher_email
 from notify import notify, email_template, ACADEMY_NAME
 
 router = APIRouter(tags=["courses"])
@@ -60,8 +60,11 @@ def course_out(doc: dict) -> dict:
 
 
 @router.get("/courses")
-async def list_courses():
-    docs = await db.courses.find({"published": True}).sort("created_at", -1).to_list(200)
+async def list_courses(user: dict | None = Depends(optional_user)):
+    query = {"published": True}
+    if not can_see_demo_content(user):
+        query["demo_scope"] = {"$ne": True}
+    docs = await db.courses.find(query).sort("created_at", -1).to_list(200)
     return [course_out(d) for d in docs]
 
 
@@ -89,6 +92,8 @@ async def get_course(course_id: str, user: dict = Depends(get_current_user)):
     doc = await db.courses.find_one({"_id": course_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Course not found")
+    if doc.get("demo_scope") and not can_see_demo_content(user) and doc.get("teacher_id") != user["id"]:
+        raise HTTPException(status_code=404, detail="Course not found")
     doc = course_out(doc)
     enrollment = await db.enrollments.find_one({"course_id": course_id, "student_id": user["id"]})
     doc["enrolled"] = enrollment is not None
@@ -110,6 +115,7 @@ async def create_course(body: CourseBody, user: dict = Depends(require_role("tea
         "teacher_id": user["id"],
         "teacher_name": user["name"],
         "sections": [],
+        "demo_scope": is_demo_teacher_email(user.get("email", "")),
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
     await db.courses.insert_one(doc)

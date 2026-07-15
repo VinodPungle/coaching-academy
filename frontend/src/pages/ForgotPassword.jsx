@@ -2,13 +2,14 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api, formatApiError } from "@/lib/api";
 import { GraduationCap, MailCheck } from "lucide-react";
-import { ACADEMY_NAME } from "@/lib/config";
+import { useSiteConfig } from "@/context/SiteConfigContext";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const { brand_name } = useSiteConfig();
 
   const submit = async (e) => {
     e.preventDefault();
@@ -28,7 +29,7 @@ export default function ForgotPassword() {
     <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-50 px-4">
       <Link to="/" className="flex items-center gap-2 mb-8">
         <GraduationCap className="w-6 h-6 text-blue-700" />
-        <span className="font-heading font-black tracking-tight text-sm sm:text-base leading-tight">{ACADEMY_NAME}</span>
+        <span className="font-heading font-black tracking-tight text-sm sm:text-base leading-tight">{brand_name}</span>
       </Link>
       <div className="w-full max-w-sm bg-white border border-zinc-200 p-8">
         {sent ? (

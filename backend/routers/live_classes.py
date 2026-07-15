@@ -1,15 +1,35 @@
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from database import db
-from auth_utils import get_current_user, require_role
+from auth_utils import get_current_user, require_role, is_demo_teacher_email, can_see_demo_content
 from notify import notify
 from zoom_service import zoom_configured, create_zoom_meeting
 
 router = APIRouter(tags=["live-classes"])
+
+
+@router.get("/live-classes/public/next")
+async def next_public_live_class():
+    """Public — returns the soonest upcoming live class open to all students,
+    or the soonest live-now class. Prefers course_id == null (open to all).
+    Demo-teacher-scoped classes are excluded from the public landing page."""
+    now = datetime.now(timezone.utc)
+    cursor = db.live_classes.find({"course_id": None, "demo_scope": {"$ne": True}}).sort("start_time", 1)
+    async for c in cursor:
+        try:
+            start = datetime.fromisoformat(c["start_time"].replace("Z", "+00:00"))
+        except (ValueError, KeyError):
+            continue
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=timezone.utc)
+        end = start + timedelta(minutes=int(c.get("duration_min") or 0))
+        if end > now:
+            return {"id": c["_id"], "title": c["title"], "subject": c.get("subject", ""), "start_time": c["start_time"], "duration_min": c.get("duration_min", 60)}
+    return None
 
 
 def _normalize_url(url: str) -> str:
@@ -55,6 +75,8 @@ async def list_live_classes(course_id: Optional[str] = None, user: dict = Depend
         query = {"teacher_id": user["id"]} if user["role"] == "teacher" else {}
     else:
         query = await student_class_query(user["id"])
+        if not can_see_demo_content(user):
+            query["demo_scope"] = {"$ne": True}
     if course_id:
         query = {**query, "course_id": course_id}
     docs = await db.live_classes.find(query).sort("start_time", 1).to_list(200)
@@ -96,6 +118,7 @@ async def create_live_class(body: LiveClassBody, user: dict = Depends(require_ro
         "zoom_meeting_id": zoom_meeting_id,
         "teacher_id": user["id"],
         "teacher_name": user["name"],
+        "demo_scope": is_demo_teacher_email(user.get("email", "")),
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
     await db.live_classes.insert_one(doc)

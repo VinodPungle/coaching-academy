@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from database import db
-from auth_utils import get_current_user, require_role
+from auth_utils import get_current_user, require_role, is_demo_teacher_email, can_see_demo_content
 from notify import notify, email_template
 
 router = APIRouter(tags=["assignments"])
@@ -51,7 +51,10 @@ async def list_assignments(user: dict = Depends(get_current_user)):
         return result
     enrollments = await db.enrollments.find({"student_id": user["id"]}).to_list(500)
     my_courses = [e["course_id"] for e in enrollments]
-    docs = await db.assignments.find({"course_id": {"$in": [None, *my_courses]}}).sort("created_at", -1).to_list(200)
+    query = {"course_id": {"$in": [None, *my_courses]}}
+    if not can_see_demo_content(user):
+        query["demo_scope"] = {"$ne": True}
+    docs = await db.assignments.find(query).sort("created_at", -1).to_list(200)
     assignment_ids = [d["_id"] for d in docs]
     my_subs = {
         s["assignment_id"]: s
@@ -82,6 +85,7 @@ async def create_assignment(body: AssignmentBody, user: dict = Depends(require_r
         "_id": str(uuid.uuid4()),
         "teacher_id": user["id"],
         "teacher_name": user["name"],
+        "demo_scope": is_demo_teacher_email(user.get("email", "")),
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
     await db.assignments.insert_one(doc)

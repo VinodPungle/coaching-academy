@@ -35,8 +35,10 @@ export default function CourseDetail() {
   const [uploadingFor, setUploadingFor] = useState(null);
   const [uploadingVideoFor, setUploadingVideoFor] = useState(null);
   const [videoProgress, setVideoProgress] = useState({}); // { subTopicId: pct }
+  const [editingCourse, setEditingCourse] = useState(null); // {title, subject, description, duration, price, image_url, is_free}
 
   const isOwner = user.role !== "student";
+  const canEditCourse = user.role === "teacher" && course && course.teacher_id === user.id;
 
   const load = useCallback(() => {
     api.get(`/courses/${id}`).then((r) => setCourse(r.data));
@@ -308,6 +310,40 @@ export default function CourseDetail() {
     } catch (err) { toast.error(formatApiError(err)); }
   };
 
+  const openCourseEditor = () => {
+    setEditingCourse({
+      title: course.title || "",
+      subject: course.subject || "Physics",
+      description: course.description || "",
+      duration: course.duration || "",
+      price: course.price ?? 0,
+      is_free: !!course.is_free,
+      image_url: course.image_url || "",
+    });
+  };
+  const saveCourseEdit = async () => {
+    if (!editingCourse) return;
+    const t = (editingCourse.title || "").trim();
+    if (!t) return toast.error("Course title is required");
+    if (!editingCourse.subject) return toast.error("Subject is required");
+    const price = editingCourse.is_free ? 0 : Number(editingCourse.price);
+    if (!editingCourse.is_free && (isNaN(price) || price < 0)) return toast.error("Price must be a non-negative number");
+    try {
+      await api.put(`/courses/${id}`, {
+        title: t,
+        subject: editingCourse.subject,
+        description: editingCourse.description || "",
+        duration: editingCourse.duration || "",
+        price,
+        is_free: !!editingCourse.is_free,
+        image_url: editingCourse.image_url || "",
+      });
+      toast.success("Course updated");
+      setEditingCourse(null);
+      load();
+    } catch (err) { toast.error(formatApiError(err)); }
+  };
+
   return (
     <div className="space-y-8">
       <Link to="/app/courses" className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-950" data-testid="back-to-courses">
@@ -316,7 +352,14 @@ export default function CourseDetail() {
       <div className="flex flex-col md:flex-row gap-6 md:items-start justify-between">
         <div className="max-w-2xl">
           <span className="text-xs uppercase tracking-[0.2em] font-semibold text-blue-700">{course.subject}</span>
-          <h1 className="font-heading text-3xl font-black tracking-tight mt-1" data-testid="course-detail-title">{course.title}</h1>
+          <div className="flex items-center gap-3 mt-1 flex-wrap">
+            <h1 className="font-heading text-3xl font-black tracking-tight" data-testid="course-detail-title">{course.title}</h1>
+            {canEditCourse && (
+              <button onClick={openCourseEditor} data-testid="course-edit-button" className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border border-zinc-300 hover:bg-zinc-100">
+                <Edit2 className="w-3.5 h-3.5" /> Edit course
+              </button>
+            )}
+          </div>
           <p className="text-sm text-zinc-500 mt-3 leading-relaxed">{course.description}</p>
           <div className="flex gap-6 text-sm text-zinc-500 mt-4 flex-wrap">
             <span>Instructor: <span className="font-semibold text-zinc-950">{course.teacher_name}</span></span>
@@ -511,7 +554,7 @@ export default function CourseDetail() {
                                   <label className="inline-flex items-center gap-2 text-xs font-semibold text-blue-700 cursor-pointer hover:underline">
                                     <Upload className="w-3.5 h-3.5" />
                                     {uploadingFor === st.id ? "Uploading notes…" : "Attach notes / PDF (max 25 MB)"}
-                                    <input type="file" data-testid={`lesson-notes-input-${st.id}`} className="hidden" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp,.txt,.pptx,.xlsx,.zip,.csv" onChange={(e) => handleNotesFile(st.id, e.target.files?.[0])} />
+                                    <input type="file" data-testid={`lesson-notes-input-${st.id}`} className="hidden" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp,.txt,.ppt,.pptx,.xlsx,.zip,.csv" onChange={(e) => handleNotesFile(st.id, e.target.files?.[0])} />
                                   </label>
                                 </div>
                               </div>
@@ -638,6 +681,57 @@ export default function CourseDetail() {
         <EnrollModal course={course} batches={batches} onClose={() => setShowEnroll(false)} onDone={() => { setShowEnroll(false); load(); }} />
       )}
 
+      {editingCourse && (
+        <div className="fixed inset-0 z-50 bg-zinc-950/60 flex items-center justify-center p-4" data-testid="course-edit-modal" onClick={() => setEditingCourse(null)}>
+          <div className="bg-white w-full max-w-2xl border border-zinc-200 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200">
+              <h3 className="font-heading font-bold text-lg">Edit course</h3>
+              <button onClick={() => setEditingCourse(null)} data-testid="course-edit-close" className="text-zinc-400 hover:text-zinc-950 text-2xl leading-none">×</button>
+            </div>
+            <div className="px-6 py-5 space-y-4 max-h-[70vh] overflow-y-auto">
+              <div>
+                <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Course name</label>
+                <input data-testid="course-edit-title" value={editingCourse.title} onChange={(e) => setEditingCourse({ ...editingCourse, title: e.target.value })} maxLength={200} className="mt-1.5 w-full border border-zinc-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-700" />
+              </div>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Subject</label>
+                  <select data-testid="course-edit-subject" value={editingCourse.subject} onChange={(e) => setEditingCourse({ ...editingCourse, subject: e.target.value })} className="mt-1.5 w-full border border-zinc-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-700 bg-white">
+                    {["Physics", "Chemistry", "Mathematics", "Biotechnology"].map((s) => <option key={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Duration</label>
+                  <input data-testid="course-edit-duration" value={editingCourse.duration} onChange={(e) => setEditingCourse({ ...editingCourse, duration: e.target.value })} placeholder="6 months" className="mt-1.5 w-full border border-zinc-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-700" />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Description</label>
+                <textarea data-testid="course-edit-description" value={editingCourse.description} onChange={(e) => setEditingCourse({ ...editingCourse, description: e.target.value })} rows={4} maxLength={5000} className="mt-1.5 w-full border border-zinc-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-700 resize-none" />
+              </div>
+              <div>
+                <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Cover image URL (optional)</label>
+                <input data-testid="course-edit-image" value={editingCourse.image_url} onChange={(e) => setEditingCourse({ ...editingCourse, image_url: e.target.value })} placeholder="https://…" className="mt-1.5 w-full border border-zinc-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-700" />
+              </div>
+              <div className="grid sm:grid-cols-[1fr_auto] gap-3 items-end">
+                <div>
+                  <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Price (₹)</label>
+                  <input data-testid="course-edit-price" type="number" min={0} value={editingCourse.is_free ? 0 : editingCourse.price} disabled={editingCourse.is_free} onChange={(e) => setEditingCourse({ ...editingCourse, price: e.target.value })} className="mt-1.5 w-full border border-zinc-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-700 disabled:bg-zinc-100" />
+                </div>
+                <label className="inline-flex items-center gap-2 pb-2 text-sm">
+                  <input data-testid="course-edit-is-free" type="checkbox" checked={editingCourse.is_free} onChange={(e) => setEditingCourse({ ...editingCourse, is_free: e.target.checked })} />
+                  Free course
+                </label>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-zinc-200 bg-zinc-50">
+              <button onClick={() => setEditingCourse(null)} data-testid="course-edit-cancel" className="px-4 py-2 text-sm font-semibold border border-zinc-300 hover:bg-zinc-100">Cancel</button>
+              <button onClick={saveCourseEdit} data-testid="course-edit-save" className="px-4 py-2 text-sm font-semibold bg-blue-700 text-white hover:bg-blue-900">Save changes</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {editingLesson && (
         <div className="fixed inset-0 z-50 bg-zinc-950/60 flex items-center justify-center p-4" data-testid="lesson-edit-modal" onClick={() => setEditingLesson(null)}>
           <div className="bg-white w-full max-w-2xl border border-zinc-200 shadow-xl" onClick={(e) => e.stopPropagation()}>
@@ -686,7 +780,7 @@ export default function CourseDetail() {
                 <label className="inline-flex items-center gap-2 text-xs font-semibold text-blue-700 cursor-pointer hover:underline">
                   <Upload className="w-3.5 h-3.5" />
                   {lessonEditUploadingNotes ? "Uploading notes…" : "Attach notes / PDF (max 25 MB)"}
-                  <input type="file" data-testid="lesson-edit-notes-input" className="hidden" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp,.txt,.pptx,.xlsx,.zip,.csv" onChange={(e) => handleEditLessonNotesUpload(e.target.files?.[0])} />
+                  <input type="file" data-testid="lesson-edit-notes-input" className="hidden" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp,.txt,.ppt,.pptx,.xlsx,.zip,.csv" onChange={(e) => handleEditLessonNotesUpload(e.target.files?.[0])} />
                 </label>
               </div>
               <div>

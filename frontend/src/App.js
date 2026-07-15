@@ -3,8 +3,10 @@ import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "sonner";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { SiteConfigProvider } from "@/context/SiteConfigContext";
 import PortalLayout from "@/components/PortalLayout";
 import Landing from "@/pages/Landing";
+import TeachersPublic from "@/pages/TeachersPublic";
 import AuthPage from "@/pages/AuthPage";
 import Dashboard from "@/pages/Dashboard";
 import CoursesPage from "@/pages/Courses";
@@ -30,6 +32,9 @@ import AdminTeachers from "@/pages/AdminTeachers";
 import AdminTopPerformers from "@/pages/AdminTopPerformers";
 import AdminSettings from "@/pages/AdminSettings";
 import AdminEnrollments from "@/pages/AdminEnrollments";
+import AdminSiteContent from "@/pages/AdminSiteContent";
+import AdminTeacherProfiles from "@/pages/AdminTeacherProfiles";
+import TeacherProfileEdit from "@/pages/TeacherProfileEdit";
 
 function Protected({ children }) {
   const { user, loading } = useAuth();
@@ -45,58 +50,64 @@ function Protected({ children }) {
 
 function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/auth" element={<AuthPage />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-          <Route
-            path="/certificate/:courseId"
-            element={
-              <Protected>
-                <Certificate />
-              </Protected>
-            }
-          />
-          <Route
-            path="/app"
-            element={
-              <Protected>
-                <PortalLayout />
-              </Protected>
-            }
-          >
-            <Route index element={<Navigate to="/app/dashboard" replace />} />
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="courses" element={<CoursesPage />} />
-            <Route path="courses/:id" element={<CourseDetail />} />
-            <Route path="courses/:courseId/lessons/:lessonId" element={<LessonPage />} />
-            <Route path="live" element={<LiveClasses />} />
-            <Route path="live/:id/recording" element={<RecordingPage />} />
-            <Route path="live/:id/attendance" element={<AttendancePage />} />
-            <Route path="tests" element={<TestsPage />} />
-            <Route path="tests/new" element={<TestBuilder />} />
-            <Route path="tests/:id/edit" element={<TestBuilder />} />
-            <Route path="tests/:id/take" element={<TakeTest />} />
-            <Route path="tests/:id/results" element={<TestResults />} />
-            <Route path="tests/:id/review" element={<TestReview />} />
-            <Route path="tests/:id/leaderboard" element={<Leaderboard />} />
-            <Route path="assignments" element={<AssignmentsPage />} />
-            <Route path="announcements" element={<AnnouncementsPage />} />
-            <Route path="users" element={<AdminUsers />} />
-            <Route path="payments" element={<AdminPayments />} />
-            <Route path="teachers" element={<AdminTeachers />} />
-            <Route path="top-performers" element={<AdminTopPerformers />} />
-            <Route path="settings" element={<AdminSettings />} />
-            <Route path="enrollments" element={<AdminEnrollments />} />
-          </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
-      <Toaster position="top-right" richColors />
-    </AuthProvider>
+    <SiteConfigProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Landing />} />
+            <Route path="/teachers" element={<TeachersPublic />} />
+            <Route path="/auth" element={<AuthPage />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route
+              path="/certificate/:courseId"
+              element={
+                <Protected>
+                  <Certificate />
+                </Protected>
+              }
+            />
+            <Route
+              path="/app"
+              element={
+                <Protected>
+                  <PortalLayout />
+                </Protected>
+              }
+            >
+              <Route index element={<Navigate to="/app/dashboard" replace />} />
+              <Route path="dashboard" element={<Dashboard />} />
+              <Route path="courses" element={<CoursesPage />} />
+              <Route path="courses/:id" element={<CourseDetail />} />
+              <Route path="courses/:courseId/lessons/:lessonId" element={<LessonPage />} />
+              <Route path="live" element={<LiveClasses />} />
+              <Route path="live/:id/recording" element={<RecordingPage />} />
+              <Route path="live/:id/attendance" element={<AttendancePage />} />
+              <Route path="tests" element={<TestsPage />} />
+              <Route path="tests/new" element={<TestBuilder />} />
+              <Route path="tests/:id/edit" element={<TestBuilder />} />
+              <Route path="tests/:id/take" element={<TakeTest />} />
+              <Route path="tests/:id/results" element={<TestResults />} />
+              <Route path="tests/:id/review" element={<TestReview />} />
+              <Route path="tests/:id/leaderboard" element={<Leaderboard />} />
+              <Route path="assignments" element={<AssignmentsPage />} />
+              <Route path="announcements" element={<AnnouncementsPage />} />
+              <Route path="users" element={<AdminUsers />} />
+              <Route path="payments" element={<AdminPayments />} />
+              <Route path="teachers" element={<AdminTeachers />} />
+              <Route path="top-performers" element={<AdminTopPerformers />} />
+              <Route path="settings" element={<AdminSettings />} />
+              <Route path="site-content" element={<AdminSiteContent />} />
+              <Route path="teacher-profiles" element={<AdminTeacherProfiles />} />
+              <Route path="my-profile" element={<TeacherProfileEdit />} />
+              <Route path="enrollments" element={<AdminEnrollments />} />
+            </Route>
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </BrowserRouter>
+        <Toaster position="top-right" richColors />
+      </AuthProvider>
+    </SiteConfigProvider>
   );
 }
 

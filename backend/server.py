@@ -14,7 +14,7 @@ from starlette.middleware.cors import CORSMiddleware
 from database import db, client
 from seed import seed
 from notify import ACADEMY_NAME
-from routers import auth, courses, tests, live_classes, assignments, announcements, dashboard, payments, batches, files, certificates, notifications, admin, comments, enquiries
+from routers import auth, courses, tests, live_classes, assignments, announcements, dashboard, payments, batches, files, certificates, notifications, admin, comments, enquiries, site_config, teacher_profiles
 
 app = FastAPI(title=f"{ACADEMY_NAME} LMS")
 
@@ -41,6 +41,8 @@ api_router.include_router(notifications.router)
 api_router.include_router(admin.router)
 api_router.include_router(comments.router)
 api_router.include_router(enquiries.router)
+api_router.include_router(site_config.router)
+api_router.include_router(teacher_profiles.router)
 
 app.include_router(api_router)
 
@@ -152,7 +154,57 @@ async def startup():
             await db.courses.update_one({"_id": c["_id"]}, {"$set": {"sections": c["sections"]}})
             logger.info(f"Backfilled sub_topics for course {c.get('title', c['_id'])}")
     await seed()
+    # Initialise persistent object storage (best-effort; do not block startup on failure)
+    try:
+        import storage_service
+        if storage_service.is_configured():
+            storage_service.init_storage()
+            logger.info("Object storage initialised")
+        else:
+            logger.warning("EMERGENT_LLM_KEY not set — object storage is unavailable, uploads will fail")
+    except Exception as exc:  # noqa: BLE001
+        logger.error(f"Object storage init failed: {exc}")
+
+    # One-time backfill: copy any legacy files still on disk to object storage
+    try:
+        await _backfill_legacy_files_to_object_storage()
+    except Exception as exc:  # noqa: BLE001
+        logger.error(f"Legacy files backfill failed: {exc}")
     logger.info("Startup complete: indexes ensured, seed data checked")
+
+
+async def _backfill_legacy_files_to_object_storage():
+    """Copy files still present on the container disk into object storage.
+    Idempotent — guarded by db.system_flags flag; updates each file record with
+    storage_path so subsequent reads go through object storage.
+    """
+    import storage_service
+    from pathlib import Path
+    flag = await db.system_flags.find_one({"_id": "files_to_objstore_v1"})
+    if flag:
+        return
+    if not storage_service.is_configured():
+        logger.warning("Skipping legacy files backfill — object storage not configured")
+        return
+    LEGACY_DIR = Path(__file__).parent / "uploads"
+    copied, missing, failed = 0, 0, 0
+    async for meta in db.files.find({"storage_path": {"$in": [None, ""]}}):
+        file_id = meta["_id"]
+        ext = meta.get("ext", "")
+        local = LEGACY_DIR / f"{file_id}{ext}"
+        if not local.exists():
+            missing += 1
+            continue
+        try:
+            path = storage_service.build_path(meta.get("uploader_id") or "system", file_id, ext)
+            result = storage_service.put_object(path, local.read_bytes(), meta.get("content_type") or "application/octet-stream")
+            await db.files.update_one({"_id": file_id}, {"$set": {"storage_path": result.get("path", path)}})
+            copied += 1
+        except Exception as exc:  # noqa: BLE001
+            logger.error(f"Failed to migrate {file_id}: {exc}")
+            failed += 1
+    logger.info(f"Legacy file backfill: copied={copied} missing={missing} failed={failed}")
+    await db.system_flags.insert_one({"_id": "files_to_objstore_v1", "at": datetime.now(timezone.utc).isoformat(), "stats": {"copied": copied, "missing": missing, "failed": failed}})
 
 
 @app.on_event("shutdown")

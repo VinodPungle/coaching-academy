@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { formatApiError } from "@/lib/api";
 import { GraduationCap } from "lucide-react";
-import { ACADEMY_NAME } from "@/lib/config";
+import { useSiteConfig } from "@/context/SiteConfigContext";
 
 export default function AuthPage() {
   const [params] = useSearchParams();
@@ -14,6 +14,7 @@ export default function AuthPage() {
   const [busy, setBusy] = useState(false);
   const { login, register } = useAuth();
   const navigate = useNavigate();
+  const { brand_name } = useSiteConfig();
 
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
@@ -39,7 +40,7 @@ export default function AuthPage() {
       <div className="flex flex-col px-6 py-8 md:px-16 md:py-12">
         <Link to="/" className="flex items-center gap-2 w-fit" data-testid="auth-home-link">
           <GraduationCap className="w-6 h-6 text-blue-700" />
-          <span className="font-heading font-black tracking-tight text-sm sm:text-base leading-tight">{ACADEMY_NAME}</span>
+          <span className="font-heading font-black tracking-tight text-sm sm:text-base leading-tight">{brand_name}</span>
         </Link>
         <div className="flex-1 flex items-center">
           <div className="w-full max-w-sm">
@@ -138,7 +139,7 @@ export default function AuthPage() {
             </form>
 
             <p className="mt-6 text-sm text-zinc-500">
-              {mode === "login" ? `New to ${ACADEMY_NAME}?` : "Already have an account?"}{" "}
+              {mode === "login" ? `New to ${brand_name}?` : "Already have an account?"}{" "}
               <button
                 data-testid="auth-mode-toggle"
                 onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(""); }}
@@ -166,7 +167,7 @@ export default function AuthPage() {
           <p className="font-heading text-2xl font-bold leading-snug">
             "The mock tests felt exactly like the real exam. I walked in with zero surprises."
           </p>
-          <p className="mt-3 text-sm text-zinc-300">— Top ranker, {ACADEMY_NAME}</p>
+          <p className="mt-3 text-sm text-zinc-300">— Top ranker, {brand_name}</p>
         </div>
       </div>
     </div>
