@@ -134,11 +134,47 @@ async def update_course(course_id: str, body: CourseBody, user: dict = Depends(r
 
 @router.delete("/courses/{course_id}")
 async def delete_course(course_id: str, user: dict = Depends(require_role("teacher", "admin"))):
-    result = await db.courses.delete_one({"_id": course_id, "teacher_id": user["id"]})
-    if result.deleted_count == 0:
+    """Delete a course and cascade-remove all related content.
+    Owner-only (teacher who created it). Admin cannot bypass — kept intentionally strict."""
+    course = await db.courses.find_one({"_id": course_id, "teacher_id": user["id"]})
+    if not course:
         raise HTTPException(status_code=404, detail="Course not found")
+    # Gather child ids
+    test_ids = [t["_id"] async for t in db.tests.find({"course_id": course_id}, {"_id": 1})]
+    assignment_ids = [a["_id"] async for a in db.assignments.find({"course_id": course_id}, {"_id": 1})]
+    live_ids = [l["_id"] async for l in db.live_classes.find({"course_id": course_id}, {"_id": 1})]
+    # Cascade delete
+    if test_ids:
+        await db.test_attempts.delete_many({"test_id": {"$in": test_ids}})
+    await db.tests.delete_many({"course_id": course_id})
+    if assignment_ids:
+        await db.submissions.delete_many({"assignment_id": {"$in": assignment_ids}})
+    await db.assignments.delete_many({"course_id": course_id})
+    await db.live_classes.delete_many({"course_id": course_id})
+    await db.announcements.delete_many({"course_id": course_id})
     await db.enrollments.delete_many({"course_id": course_id})
-    return {"message": "Course deleted"}
+    await db.batches.delete_many({"course_id": course_id})
+    await db.payments.delete_many({"course_id": course_id})
+    await db.certificates.delete_many({"course_id": course_id})
+    await db.comments.delete_many({"entity_type": "course", "entity_id": course_id})
+    # Also comments on the course's lessons
+    lesson_ids: list = []
+    for section in course.get("sections", []):
+        for st in section.get("sub_topics", []):
+            for lesson in st.get("lessons", []):
+                lesson_ids.append(lesson.get("id"))
+    if lesson_ids:
+        await db.comments.delete_many({"entity_type": "lesson", "entity_id": {"$in": lesson_ids}})
+    await db.courses.delete_one({"_id": course_id})
+    return {
+        "message": "Course and all related content deleted",
+        "cascaded": {
+            "tests": len(test_ids),
+            "assignments": len(assignment_ids),
+            "live_classes": len(live_ids),
+            "lessons": len(lesson_ids),
+        },
+    }
 
 
 @router.post("/courses/{course_id}/sections")

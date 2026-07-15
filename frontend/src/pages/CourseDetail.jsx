@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { api, formatApiError, uploadFile, fileUrl } from "@/lib/api";
 import EnrollModal from "@/components/EnrollModal";
@@ -12,6 +12,7 @@ import dayjs from "dayjs";
 
 export default function CourseDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [course, setCourse] = useState(null);
   const [students, setStudents] = useState([]);
@@ -344,6 +345,25 @@ export default function CourseDetail() {
     } catch (err) { toast.error(formatApiError(err)); }
   };
 
+  const deleteCourse = async () => {
+    if (!course) return;
+    const confirm1 = window.confirm(
+      `Delete course "${course.title}"?\n\nThis will PERMANENTLY delete the course along with:\n  • All sections, sub-topics, lessons\n  • All tests, assignments, live classes, announcements\n  • All student enrollments and payments for this course\n  • All batches, submissions, certificates and comments\n\nThis cannot be undone.`
+    );
+    if (!confirm1) return;
+    const typed = window.prompt(`To confirm, type the course title exactly:\n\n${course.title}`);
+    if (typed !== course.title) {
+      if (typed !== null) toast.error("Course title did not match — deletion cancelled");
+      return;
+    }
+    try {
+      const { data } = await api.delete(`/courses/${id}`);
+      const c = data?.cascaded || {};
+      toast.success(`Course deleted (${c.tests || 0} tests, ${c.assignments || 0} assignments, ${c.live_classes || 0} live classes cascaded)`);
+      navigate("/app/courses");
+    } catch (err) { toast.error(formatApiError(err)); }
+  };
+
   return (
     <div className="space-y-8">
       <Link to="/app/courses" className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-950" data-testid="back-to-courses">
@@ -355,9 +375,14 @@ export default function CourseDetail() {
           <div className="flex items-center gap-3 mt-1 flex-wrap">
             <h1 className="font-heading text-3xl font-black tracking-tight" data-testid="course-detail-title">{course.title}</h1>
             {canEditCourse && (
-              <button onClick={openCourseEditor} data-testid="course-edit-button" className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border border-zinc-300 hover:bg-zinc-100">
-                <Edit2 className="w-3.5 h-3.5" /> Edit course
-              </button>
+              <>
+                <button onClick={openCourseEditor} data-testid="course-edit-button" className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border border-zinc-300 hover:bg-zinc-100">
+                  <Edit2 className="w-3.5 h-3.5" /> Edit course
+                </button>
+                <button onClick={deleteCourse} data-testid="course-delete-button" className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border border-red-300 text-red-600 hover:bg-red-50">
+                  <Trash2 className="w-3.5 h-3.5" /> Delete course
+                </button>
+              </>
             )}
           </div>
           <p className="text-sm text-zinc-500 mt-3 leading-relaxed">{course.description}</p>

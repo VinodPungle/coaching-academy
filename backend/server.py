@@ -177,6 +177,18 @@ async def startup():
             r = await db.announcements.update_many({"teacher_id": {"$in": demo_teacher_ids}}, {"$set": {"demo_scope": True}})
             logger.info(f"Tagged {r.modified_count} demo announcements")
         await db.system_flags.insert_one({"_id": "demo_announcements_tag_v1", "at": datetime.now(timezone.utc).isoformat()})
+    # One-time: retroactively tag demo_scope on courses/tests/assignments/live_classes created by demo teachers
+    # (needed for content that existed before the demo-isolation deploy)
+    if not await db.system_flags.find_one({"_id": "demo_content_tag_v2"}):
+        demo_teacher_ids = [u["_id"] async for u in db.users.find({"role": "teacher", "is_demo": True}, {"_id": 1})]
+        if demo_teacher_ids:
+            for coll_name in ("courses", "tests", "assignments", "live_classes"):
+                r = await db[coll_name].update_many(
+                    {"teacher_id": {"$in": demo_teacher_ids}, "demo_scope": {"$ne": True}},
+                    {"$set": {"demo_scope": True}},
+                )
+                logger.info(f"Backfilled demo_scope on {r.modified_count} {coll_name}")
+        await db.system_flags.insert_one({"_id": "demo_content_tag_v2", "at": datetime.now(timezone.utc).isoformat()})
     # Initialise persistent object storage (best-effort; do not block startup on failure)
     try:
         import storage_service
