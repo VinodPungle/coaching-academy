@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr, Field
 
 from database import db
-from auth_utils import require_role, get_current_user
+from auth_utils import require_role, get_current_user, optional_user, DEMO_TEACHER_EMAIL
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["teacher-profiles"])
@@ -40,9 +40,14 @@ def _profile_out(user: dict, profile: dict | None) -> dict:
 
 
 @router.get("/teacher-profiles")
-async def list_profiles():
-    """Public — returns all teachers with their profiles for the public page."""
-    teachers = await db.users.find({"role": "teacher"}, {"name": 1, "email": 1}).to_list(1000)
+async def list_profiles(user: dict | None = Depends(optional_user)):
+    """Public — returns all teachers with their profiles for the public page.
+    Demo teacher is hidden from everyone except admin (so admin can still edit
+    the demo profile from the CMS)."""
+    query = {"role": "teacher"}
+    if not user or user.get("role") != "admin":
+        query["email"] = {"$ne": DEMO_TEACHER_EMAIL}
+    teachers = await db.users.find(query, {"name": 1, "email": 1}).to_list(1000)
     profiles = {p["_id"]: p async for p in db.teacher_profiles.find({})}
     result = []
     for t in sorted(teachers, key=lambda u: u.get("name") or u.get("email") or ""):
