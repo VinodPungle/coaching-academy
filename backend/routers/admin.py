@@ -2,7 +2,7 @@ from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from database import db
-from auth_utils import require_role
+from auth_utils import require_role, demo_user_ids
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -13,19 +13,26 @@ class RoleBody(BaseModel):
 
 @router.get("/stats")
 async def admin_stats(user: dict = Depends(require_role("admin"))):
-    students = await db.users.count_documents({"role": "student"})
-    teachers = await db.users.count_documents({"role": "teacher"})
-    courses = await db.courses.count_documents({})
-    enrollments = await db.enrollments.count_documents({})
-    tests = await db.tests.count_documents({})
-    attempts = await db.test_attempts.count_documents({})
+    demo_ids = await demo_user_ids()
+    real_user_q = {"is_demo": {"$ne": True}}
+    students = await db.users.count_documents({"role": "student", **real_user_q})
+    teachers = await db.users.count_documents({"role": "teacher", **real_user_q})
+    courses = await db.courses.count_documents({"demo_scope": {"$ne": True}})
+    enroll_q = {"student_id": {"$nin": demo_ids}} if demo_ids else {}
+    enrollments = await db.enrollments.count_documents(enroll_q)
+    tests = await db.tests.count_documents({"demo_scope": {"$ne": True}})
+    attempts_q = {"student_id": {"$nin": demo_ids}} if demo_ids else {}
+    attempts = await db.test_attempts.count_documents(attempts_q)
+    revenue_match = {"status": "paid", "is_test_txn": {"$ne": True}}
+    if demo_ids:
+        revenue_match["student_id"] = {"$nin": demo_ids}
     revenue_agg = await db.payments.aggregate([
-        {"$match": {"status": "paid"}},
+        {"$match": revenue_match},
         {"$group": {"_id": None, "total": {"$sum": "$amount"}, "count": {"$sum": 1}}},
     ]).to_list(1)
     revenue = revenue_agg[0]["total"] if revenue_agg else 0
     paid_count = revenue_agg[0]["count"] if revenue_agg else 0
-    recent = await db.users.find({}, {"password_hash": 0}).sort("created_at", -1).to_list(6)
+    recent = await db.users.find({"is_demo": {"$ne": True}}, {"password_hash": 0}).sort("created_at", -1).to_list(6)
     for r in recent:
         r["id"] = r.pop("_id")
     return {
@@ -135,7 +142,11 @@ async def delete_user(user_id: str, user: dict = Depends(require_role("admin")))
 
 @router.get("/payments")
 async def admin_payments(user: dict = Depends(require_role("admin"))):
-    docs = await db.payments.find({}).sort("created_at", -1).to_list(500)
+    demo_ids = await demo_user_ids()
+    query = {"is_test_txn": {"$ne": True}}
+    if demo_ids:
+        query["student_id"] = {"$nin": demo_ids}
+    docs = await db.payments.find(query).sort("created_at", -1).to_list(500)
     for d in docs:
         d["id"] = d.pop("_id")
     total = sum(d["amount"] for d in docs if d["status"] == "paid")
@@ -147,7 +158,7 @@ async def admin_teachers(user: dict = Depends(require_role("admin"))):
     """Per-teacher breakdown: courses, students, tests, live classes, assignments (upcoming/past)."""
     from datetime import datetime, timezone
     now_iso = datetime.now(timezone.utc).isoformat()
-    teachers = await db.users.find({"role": "teacher"}, {"password_hash": 0}).sort("created_at", -1).to_list(500)
+    teachers = await db.users.find({"role": "teacher", "is_demo": {"$ne": True}}, {"password_hash": 0}).sort("created_at", -1).to_list(500)
     if not teachers:
         return []
     tids = [t["_id"] for t in teachers]
@@ -254,10 +265,13 @@ async def admin_teacher_detail(teacher_id: str, user: dict = Depends(require_rol
 
 @router.get("/top-performers")
 async def admin_top_performers(limit: int = 5, user: dict = Depends(require_role("admin"))):
-    """Top performers per batch and per course, ranked by average test %."""
-    # Compute per-student stats first, then bucket by course/batch
+    """Top performers per batch and per course, ranked by average test %. Excludes demo users."""
+    demo_ids = await demo_user_ids()
+    match = {"total": {"$gt": 0}}
+    if demo_ids:
+        match["student_id"] = {"$nin": demo_ids}
     pipeline = [
-        {"$match": {"total": {"$gt": 0}}},
+        {"$match": match},
         {"$group": {
             "_id": "$student_id",
             "avg_pct": {"$avg": {"$multiply": [{"$divide": ["$score", "$total"]}, 100]}},
@@ -267,8 +281,8 @@ async def admin_top_performers(limit: int = 5, user: dict = Depends(require_role
     ]
     stats = {r["_id"]: r for r in await db.test_attempts.aggregate(pipeline).to_list(5000)}
 
-    # Per course (from enrollments)
-    courses = await db.courses.find({}, {"_id": 1, "title": 1}).to_list(500)
+    # Per course (from enrollments) — skip demo-scoped courses
+    courses = await db.courses.find({"demo_scope": {"$ne": True}}, {"_id": 1, "title": 1}).to_list(500)
     course_top = []
     for c in courses:
         enrolls = await db.enrollments.find({"course_id": c["_id"]}).to_list(2000)

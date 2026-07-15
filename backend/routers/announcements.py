@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from database import db
-from auth_utils import get_current_user, require_role
+from auth_utils import get_current_user, require_role, is_demo_teacher_email, can_see_demo_content, demo_user_ids
 from notify import notify
 
 router = APIRouter(tags=["announcements"])
@@ -28,6 +28,8 @@ async def list_announcements(user: dict = Depends(get_current_user)):
         enrollments = await db.enrollments.find({"student_id": user["id"]}).to_list(500)
         my_courses = [e["course_id"] for e in enrollments]
         query = {"$or": [{"course_id": None}, {"course_id": {"$exists": False}}, {"course_id": {"$in": my_courses}}]}
+        if not can_see_demo_content(user):
+            query["demo_scope"] = {"$ne": True}
     docs = await db.announcements.find(query).sort("created_at", -1).to_list(200)
     for d in docs:
         d["id"] = d.pop("_id")
@@ -54,15 +56,21 @@ async def create_announcement(body: AnnouncementBody, user: dict = Depends(requi
         "teacher_id": user["id"],
         "teacher_name": user["name"],
         "posted_by_role": user["role"],
+        "demo_scope": is_demo_teacher_email(user.get("email", "")),
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.announcements.insert_one(doc)
-    # notify recipients
+    # notify recipients — skip demo students when announcement is not from demo teacher, and vice versa
     if body.course_id:
         enrollments = await db.enrollments.find({"course_id": body.course_id}).to_list(2000)
         student_ids = [e["student_id"] for e in enrollments]
     else:
-        students = await db.users.find({"role": "student"}).to_list(2000)
+        student_q = {"role": "student"}
+        if doc["demo_scope"]:
+            student_q["is_demo"] = True  # demo teacher's global announcements → only demo student
+        else:
+            student_q["is_demo"] = {"$ne": True}  # real teachers → skip demo students
+        students = await db.users.find(student_q).to_list(2000)
         student_ids = [s["_id"] for s in students]
     await notify(student_ids, "New announcement", body.title, "/app/announcements")
     doc["id"] = doc.pop("_id")

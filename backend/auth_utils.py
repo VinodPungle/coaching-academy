@@ -74,10 +74,28 @@ async def optional_user(request: Request) -> dict | None:
 
 DEMO_TEACHER_EMAIL = "teacher@bioexamprep.com"
 DEMO_STUDENT_EMAIL = "student@bioexamprep.com"
+DEMO_EMAILS = {DEMO_TEACHER_EMAIL, DEMO_STUDENT_EMAIL}
+
+
+def is_demo_user(user: dict | None) -> bool:
+    """Check the persisted `is_demo` flag with a fallback to email match (for pre-migration robustness)."""
+    if not user:
+        return False
+    if user.get("is_demo") is True:
+        return True
+    return (user.get("email") or "").lower() in DEMO_EMAILS
 
 
 def is_demo_teacher_email(email: str) -> bool:
     return (email or "").lower() == DEMO_TEACHER_EMAIL
+
+
+async def demo_user_ids() -> list:
+    """Return the list of user_ids currently flagged as demo (or matching demo emails)."""
+    ids = []
+    async for u in db.users.find({"$or": [{"is_demo": True}, {"email": {"$in": list(DEMO_EMAILS)}}]}, {"_id": 1}):
+        ids.append(u["_id"])
+    return ids
 
 
 def can_see_demo_content(user: dict | None) -> bool:

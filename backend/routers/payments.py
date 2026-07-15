@@ -172,6 +172,7 @@ async def verify_razorpay(body: RazorpayVerifyBody, user: dict = Depends(require
             "razorpay_order_id": body.razorpay_order_id,
             "razorpay_payment_id": body.razorpay_payment_id,
         },
+        is_test=bool(user.get("is_demo")),
     )
     await db.payments.insert_one(doc)
     await db.razorpay_orders.update_one(
@@ -249,9 +250,11 @@ def _assert_amount_within_outstanding(amount: float, fee: float, prior_paid: flo
         raise HTTPException(status_code=400, detail=f"Amount exceeds outstanding balance. Remaining: ₹{remaining:.2f}")
 
 
-def _build_payment_doc(student, course, body, recorded_by_id: str, recorded_by_name: str, extras: Optional[dict] = None) -> dict:
+def _build_payment_doc(student, course, body, recorded_by_id: str, recorded_by_name: str, extras: Optional[dict] = None, is_test: bool = False) -> dict:
     """Build a `db.payments` insert doc from a request body + student/course context."""
     now = datetime.now(timezone.utc).isoformat()
+    if isinstance(student, dict) and student.get("is_demo"):
+        is_test = True
     doc = {
         "_id": str(uuid.uuid4()),
         "student_id": student["_id"],
@@ -266,6 +269,7 @@ def _build_payment_doc(student, course, body, recorded_by_id: str, recorded_by_n
         "recorded_by": recorded_by_id,
         "recorded_by_name": recorded_by_name,
         "status": "paid",
+        "is_test_txn": is_test,
         "created_at": now,
         "paid_at": now,
     }

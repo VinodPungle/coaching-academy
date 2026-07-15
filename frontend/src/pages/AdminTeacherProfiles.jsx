@@ -3,12 +3,13 @@ import { toast } from "sonner";
 import { Save, User } from "lucide-react";
 import { api, formatApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import ProfilePhotoEditor from "@/components/ProfilePhotoEditor";
 
 export default function AdminTeacherProfiles() {
   const { user } = useAuth();
   const [teachers, setTeachers] = useState([]);
   const [selectedId, setSelectedId] = useState("");
-  const [form, setForm] = useState({ display_name: "", subtitle: "", bio: "" });
+  const [form, setForm] = useState({ display_name: "", subtitle: "", bio: "", photo_url: "" });
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -34,6 +35,7 @@ export default function AdminTeacherProfiles() {
         display_name: t.display_name || t.name || "",
         subtitle: t.subtitle || "",
         bio: t.bio || "",
+        photo_url: t.photo_url || "",
       });
     }
   }, [selectedId, teachers]);
@@ -84,6 +86,12 @@ export default function AdminTeacherProfiles() {
           </aside>
 
           <section className="border border-zinc-200 p-5 md:p-6 space-y-4" data-testid="teacher-profile-editor">
+            <div>
+              <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Profile photo</label>
+              <div className="mt-2">
+                <ProfilePhotoEditor value={form.photo_url} onChange={(v) => setForm({ ...form, photo_url: v })} testidPrefix="admin-teacher-photo" />
+              </div>
+            </div>
             <div>
               <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Display name</label>
               <input

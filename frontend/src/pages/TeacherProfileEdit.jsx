@@ -3,10 +3,11 @@ import { toast } from "sonner";
 import { Save } from "lucide-react";
 import { api, formatApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import ProfilePhotoEditor from "@/components/ProfilePhotoEditor";
 
 export default function TeacherProfileEdit() {
   const { user } = useAuth();
-  const [form, setForm] = useState({ display_name: "", subtitle: "", bio: "" });
+  const [form, setForm] = useState({ display_name: "", subtitle: "", bio: "", photo_url: "" });
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -17,6 +18,7 @@ export default function TeacherProfileEdit() {
         display_name: data.display_name || data.name || "",
         subtitle: data.subtitle || "",
         bio: data.bio || "",
+        photo_url: data.photo_url || "",
       }))
       .catch((err) => toast.error(formatApiError(err)))
       .finally(() => setLoading(false));
@@ -45,6 +47,12 @@ export default function TeacherProfileEdit() {
       </div>
 
       <section className="border border-zinc-200 p-5 md:p-6 space-y-4 max-w-2xl">
+        <div>
+          <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Profile photo</label>
+          <div className="mt-2">
+            <ProfilePhotoEditor value={form.photo_url} onChange={(v) => setForm({ ...form, photo_url: v })} testidPrefix="my-profile-photo" />
+          </div>
+        </div>
         <div>
           <label className="text-xs uppercase tracking-[0.15em] font-semibold text-zinc-500">Display name</label>
           <input

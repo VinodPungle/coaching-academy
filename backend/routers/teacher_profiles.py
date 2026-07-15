@@ -22,7 +22,7 @@ class ProfileBody(BaseModel):
     display_name: Optional[str] = Field(default=None, max_length=200)
     subtitle: Optional[str] = Field(default=None, max_length=300)
     bio: Optional[str] = Field(default=None, max_length=5000)
-    photo_file_id: Optional[str] = Field(default=None, max_length=100)
+    photo_url: Optional[str] = Field(default=None, max_length=2000)
 
 
 def _profile_out(user: dict, profile: dict | None) -> dict:
@@ -34,7 +34,7 @@ def _profile_out(user: dict, profile: dict | None) -> dict:
         "display_name": p.get("display_name") or user.get("name", ""),
         "subtitle": p.get("subtitle") or "",
         "bio": p.get("bio") or "",
-        "photo_url": (f"/api/files/{p['photo_file_id']}" if p.get("photo_file_id") else ""),
+        "photo_url": p.get("photo_url") or "",
         "updated_at": p.get("updated_at"),
     }
 
@@ -63,15 +63,15 @@ async def update_profile(teacher_id: str, body: ProfileBody, user: dict = Depend
     if not teacher:
         raise HTTPException(status_code=404, detail="Teacher not found")
     update = {"updated_at": datetime.now(timezone.utc).isoformat(), "updated_by": user["id"]}
-    for field in ("display_name", "subtitle", "bio", "photo_file_id"):
+    for field in ("display_name", "subtitle", "bio", "photo_url"):
         val = getattr(body, field)
         if val is not None:
             val = val.strip() if isinstance(val, str) else val
+            # Validate URL: allow empty (removes photo), /api/files/... paths, or absolute http(s) URLs
+            if field == "photo_url" and val:
+                if not (val.startswith("/api/files/") or val.startswith("http://") or val.startswith("https://")):
+                    raise HTTPException(status_code=400, detail="photo_url must be an http(s) URL or an /api/files/... path")
             update[field] = val
-    if body.photo_file_id:
-        f = await db.files.find_one({"_id": body.photo_file_id})
-        if not f:
-            raise HTTPException(status_code=400, detail="photo_file_id does not reference a valid uploaded file")
     await db.teacher_profiles.update_one({"_id": teacher_id}, {"$set": update}, upsert=True)
     profile = await db.teacher_profiles.find_one({"_id": teacher_id})
     return _profile_out(teacher, profile)

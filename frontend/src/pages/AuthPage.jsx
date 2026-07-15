@@ -148,11 +148,6 @@ export default function AuthPage() {
                 {mode === "login" ? "Create an account" : "Log in"}
               </button>
             </p>
-            <div className="mt-8 border border-zinc-200 bg-zinc-50 p-4 text-xs text-zinc-500 space-y-1">
-              <p className="font-semibold uppercase tracking-[0.15em]">Demo accounts</p>
-              <p>Student: student@bioexamprep.com / Student@123</p>
-              <p>Teacher: teacher@bioexamprep.com / Teacher@123</p>
-            </div>
           </div>
         </div>
       </div>

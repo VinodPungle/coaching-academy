@@ -130,7 +130,12 @@ async def create_live_class(body: LiveClassBody, user: dict = Depends(require_ro
         enrollments = await db.enrollments.find(enroll_q).to_list(1000)
         student_ids = [e["student_id"] for e in enrollments]
     else:
-        students = await db.users.find({"role": "student"}).to_list(2000)
+        student_q = {"role": "student"}
+        if doc.get("demo_scope"):
+            student_q["is_demo"] = True
+        else:
+            student_q["is_demo"] = {"$ne": True}
+        students = await db.users.find(student_q).to_list(2000)
         student_ids = [s["_id"] for s in students]
     scope = f"{course_name}{' · ' + batch_name if batch_name else ''}" if course_name else "All students"
     await notify(

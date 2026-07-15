@@ -154,6 +154,29 @@ async def startup():
             await db.courses.update_one({"_id": c["_id"]}, {"$set": {"sections": c["sections"]}})
             logger.info(f"Backfilled sub_topics for course {c.get('title', c['_id'])}")
     await seed()
+    # One-time: mark demo accounts with is_demo flag + delete their historical payment records
+    from auth_utils import DEMO_EMAILS
+    demo_users = await db.users.find({"email": {"$in": list(DEMO_EMAILS)}}, {"_id": 1, "is_demo": 1}).to_list(10)
+    for du in demo_users:
+        if not du.get("is_demo"):
+            await db.users.update_one({"_id": du["_id"]}, {"$set": {"is_demo": True}})
+            logger.info(f"Marked user {du['_id']} as is_demo=True")
+    # One-time payments purge (idempotent flag)
+    if not await db.system_flags.find_one({"_id": "demo_payments_purge_v1"}):
+        demo_ids = [u["_id"] for u in demo_users]
+        if demo_ids:
+            r = await db.payments.delete_many({"$or": [{"student_id": {"$in": demo_ids}}, {"user_id": {"$in": demo_ids}}]})
+            logger.info(f"Purged {r.deleted_count} demo payment records")
+        await db.system_flags.insert_one({"_id": "demo_payments_purge_v1", "at": datetime.now(timezone.utc).isoformat()})
+    # One-time: backfill demo_scope on announcements from demo teacher (courses/tests/etc handled elsewhere)
+    if not await db.system_flags.find_one({"_id": "demo_announcements_tag_v1"}):
+        demo_teacher_ids = [u["_id"] for u in demo_users if u.get("_id")]
+        # Actually filter by role too
+        demo_teacher_ids = [u["_id"] async for u in db.users.find({"role": "teacher", "is_demo": True}, {"_id": 1})]
+        if demo_teacher_ids:
+            r = await db.announcements.update_many({"teacher_id": {"$in": demo_teacher_ids}}, {"$set": {"demo_scope": True}})
+            logger.info(f"Tagged {r.modified_count} demo announcements")
+        await db.system_flags.insert_one({"_id": "demo_announcements_tag_v1", "at": datetime.now(timezone.utc).isoformat()})
     # Initialise persistent object storage (best-effort; do not block startup on failure)
     try:
         import storage_service
