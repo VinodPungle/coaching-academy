@@ -219,6 +219,64 @@ Delivered in 11 phases with test coverage between each phase (41 backend tests +
 - Bug hardening: Zoom-generated `join_url` also passed through `_normalize_url()` on backend before storage.
 - Verified in browser: an in-progress class shows "LIVE NOW" badge + Join Class button; `href` is a fully-qualified `https://…` URL that opens externally.
 
+## Phase 16 — Production-Readiness Overhaul (Feb 2026)
+
+Full audit for going live with real students & teachers. **Every change was regression-tested and edge-cased.**
+
+### P1 (broken core)
+- **Teacher can now edit course** (Course Detail → "Edit course" button opens modal with all fields: title, subject, description, duration, price, is_free, image_url). Permission gated to owning teacher only (`user.role === "teacher" && course.teacher_id === user.id`). Backend already had `PUT /courses/{id}` with owner check.
+- **File storage bug (root cause fixed)** — files were on the container's ephemeral disk. Migrated to Emergent Object Storage:
+  - New `storage_service.py` wrapper (init once, put/get, 403 auto-reinit)
+  - `files.py` rewritten to write to object storage on upload, read from it on download; legacy on-disk files still served as a fallback so nothing breaks pre-migration
+  - Startup backfill script: copied 19 legacy files from `/uploads/` into object storage
+  - Requires `EMERGENT_LLM_KEY` in `backend/.env` (added)
+- **.ppt & .pptx support** — added `.ppt` to `DOC_EXT` allowlist; frontend `accept=` attributes updated. `.pptx` already worked; download works via generic file endpoint.
+- **Demo isolation** — new `demo_scope` boolean on courses/tests/assignments/live_classes. Automatically set when demo teacher (`teacher@bioexamprep.com`) creates content. Filtered out for all users except admin + demo student in every listing (`/courses` public + authed, `/tests`, `/assignments`, `/live-classes`, `/live-classes/public/next`). Existing demo data backfilled.
+
+### P2 (branding + config)
+- **Site Settings runtime config** — no more build-time CRA-baked brand name. New `db.site_settings` collection, `GET /api/site-config` (public), `PUT /api/site-config` (admin). React `SiteConfigContext` fetches on mount and rebroadcasts to every page. Env var `ACADEMY_NAME` only used as first-boot seed. Default brand now **"Rohini's Academy for Bio Exams"**.
+- **All landing page copy is now DB-driven** — 24 editable fields (hero heading/subheading/badge, 3 stats, features heading, contact block, CTA block, footer, next-class empty state, teachers menu label). Admin CMS at `/app/site-content`.
+- **Economics & Geology removed** from all 5 subject dropdowns (Landing, Courses, Assignments, LiveClasses, TestBuilder). Full DB scan showed 0 orphaned records.
+
+### P3 (Admin CMS)
+- **`/app/site-content`** — full editor for brand + all landing copy fields.
+- **`/app/teacher-profiles`** — list/select/edit any teacher's public bio (display_name, subtitle, bio). Sits inside Admin sidebar.
+- **`/app/my-profile`** — teachers self-edit their own bio (subtitle + bio + display_name).
+- **New public page `/teachers`** — left rail list of teachers, right pane bio. Menu label editable via Site Content admin.
+
+### P4 (landing polish)
+- **Removed the hardcoded SUBJECTS strip** section from Landing.
+- **Dynamic "Next live class"** — Landing fetches `/api/live-classes/public/next` (prefers classes open to all students, `demo_scope != true`; shows configurable empty state if none upcoming/live).
+- **Tightened section spacing** — py-16/24 → py-12/16 across all landing sections for a less "gappy" feel.
+
+### Edge cases verified (via /tmp/test_all.py, 14 assertions)
+- Empty brand name → 400
+- Non-admin site-config PUT → 403
+- Teacher editing another teacher's profile → 403
+- Long text values (up to 5000 chars) accepted; over → 400
+- Oversized file (>25 MB doc) → 400
+- Unsupported extension (.exe) → 400
+- .ppt upload + download round trip → 200
+- Anonymous & real students see 0 demo courses; demo student sees 6
+- Course edit round-trip preserves + restores title
+- Public /live-classes/public/next returns null (no upcoming classes)
+
+### Regression checks (green)
+- Existing logins for admin/teacher/student still work
+- Teacher courses list intact (6 demo courses)
+- File download for legacy on-disk files also still works via fallback path
+- Live class create/reorder/reschedule/attend flows untouched
+- Payment/pricing display unchanged
+
+### Files added
+- `backend/storage_service.py`, `backend/routers/site_config.py`, `backend/routers/teacher_profiles.py`
+- `frontend/src/context/SiteConfigContext.jsx`, `frontend/src/pages/TeachersPublic.jsx`, `frontend/src/pages/AdminSiteContent.jsx`, `frontend/src/pages/AdminTeacherProfiles.jsx`, `frontend/src/pages/TeacherProfileEdit.jsx`
+
+### Known non-issues flagged
+- ESLint pre-existing unescaped-entity warnings in a few older components — cosmetic, not blockers.
+- The teacher `patilrohini194@gmail.com` mentioned by the user is only in production, not preview — user will add her profile from the admin CMS post-deploy.
+
+
   - Anti-spam: honeypot silent-accept, IP rate limit 3/hour (in-memory)
   - Storage: db.enquiries + fire-and-forget Resend email to ADMIN_NOTIFY_EMAIL (contact@bioexamprep.com)
   - New router: /app/backend/routers/enquiries.py
