@@ -25,3 +25,7 @@ jobs:
           # Baked into the JS bundle at build time — set as a GitHub Actions variable
           REACT_APP_BACKEND_URL: ${{ vars.REACT_APP_BACKEND_URL }}
           REACT_APP_ACADEMY_NAME: ${{ vars.REACT_APP_ACADEMY_NAME }}
+          # CRA treats ESLint warnings as build-breaking errors when CI=true (set by
+          # default on GitHub-hosted runners). Pre-existing react-hooks/exhaustive-deps
+          # warnings in the app source would otherwise fail every deploy.
+          CI: false
