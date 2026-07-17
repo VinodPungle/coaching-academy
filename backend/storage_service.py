@@ -1,86 +1,83 @@
 """
-Persistent object-storage wrapper (Emergent-managed).
+Object-storage wrapper.
 
-Provides put_object() and get_object() with a session-scoped storage_key
-initialised once at process startup. Falls back gracefully if EMERGENT_LLM_KEY
-is not configured (raises RuntimeError so callers can surface a friendly error).
+Backends, chosen by environment:
+  1. Azure Blob Storage — when AZURE_STORAGE_CONNECTION_STRING is set
+     (container name from AZURE_STORAGE_CONTAINER, default "uploads").
+  2. Local disk — fallback for development; files land in backend/uploads/.
+
+Public API used by routers/files.py: is_configured(), build_path(),
+put_object(), get_object().
 """
 import os
 import logging
-import requests
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
 APP_NAME = "bioexamprep"
+LOCAL_STORAGE_DIR = Path(__file__).parent / "uploads"
 
-_storage_key: str | None = None
+_container_client = None
+
+
+def _azure_connection_string() -> str:
+    return os.environ.get("AZURE_STORAGE_CONNECTION_STRING", "").strip()
 
 
 def is_configured() -> bool:
-    return bool(os.environ.get("EMERGENT_LLM_KEY"))
+    # Always true: Azure Blob when configured, local disk otherwise.
+    return True
 
 
-def init_storage() -> str:
-    """Initialise session-scoped storage_key. Call once at startup."""
-    global _storage_key
-    if _storage_key:
-        return _storage_key
-    key = os.environ.get("EMERGENT_LLM_KEY")
-    if not key:
-        raise RuntimeError("EMERGENT_LLM_KEY is not set — object storage is unavailable.")
-    resp = requests.post(f"{STORAGE_URL}/init", json={"emergent_key": key}, timeout=30)
-    resp.raise_for_status()
-    _storage_key = resp.json()["storage_key"]
-    return _storage_key
+def _get_container():
+    """Lazily build (and cache) the Azure container client."""
+    global _container_client
+    if _container_client is not None:
+        return _container_client
+    from azure.storage.blob import BlobServiceClient  # imported lazily — not needed for local disk
 
-
-def _key_or_reinit() -> str:
-    global _storage_key
-    if _storage_key:
-        return _storage_key
-    return init_storage()
+    service = BlobServiceClient.from_connection_string(_azure_connection_string())
+    container_name = os.environ.get("AZURE_STORAGE_CONTAINER", "uploads")
+    container = service.get_container_client(container_name)
+    if not container.exists():
+        container.create_container()
+    _container_client = container
+    return container
 
 
 def put_object(path: str, data: bytes, content_type: str) -> dict:
-    """Upload bytes to `path`. Returns {"path": ..., "size": ..., "etag": ...}.
-    Retries once with a fresh storage_key on 403.
-    """
-    global _storage_key
-    key = _key_or_reinit()
-    for attempt in range(2):
-        resp = requests.put(
-            f"{STORAGE_URL}/objects/{path}",
-            headers={"X-Storage-Key": key, "Content-Type": content_type or "application/octet-stream"},
-            data=data,
-            timeout=180,
+    """Store bytes at `path`. Returns {"path": ..., "size": ...}."""
+    if _azure_connection_string():
+        from azure.storage.blob import ContentSettings
+
+        blob = _get_container().get_blob_client(path)
+        blob.upload_blob(
+            data,
+            overwrite=True,
+            content_settings=ContentSettings(content_type=content_type or "application/octet-stream"),
         )
-        if resp.status_code == 403 and attempt == 0:
-            _storage_key = None
-            key = init_storage()
-            continue
-        resp.raise_for_status()
-        return resp.json()
-    raise RuntimeError("Object storage put_object failed after re-init")
+        return {"path": path, "size": len(data)}
+
+    target = LOCAL_STORAGE_DIR / path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(data)
+    return {"path": path, "size": len(data)}
 
 
 def get_object(path: str) -> tuple[bytes, str]:
-    """Download the object at `path`. Returns (bytes, content_type)."""
-    global _storage_key
-    key = _key_or_reinit()
-    for attempt in range(2):
-        resp = requests.get(
-            f"{STORAGE_URL}/objects/{path}",
-            headers={"X-Storage-Key": key},
-            timeout=120,
-        )
-        if resp.status_code == 403 and attempt == 0:
-            _storage_key = None
-            key = init_storage()
-            continue
-        resp.raise_for_status()
-        return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
-    raise RuntimeError("Object storage get_object failed after re-init")
+    """Fetch the object at `path`. Returns (bytes, content_type)."""
+    if _azure_connection_string():
+        blob = _get_container().get_blob_client(path)
+        downloader = blob.download_blob()
+        props = downloader.properties
+        content_type = getattr(getattr(props, "content_settings", None), "content_type", None)
+        return downloader.readall(), content_type or "application/octet-stream"
+
+    target = LOCAL_STORAGE_DIR / path
+    if not target.exists():
+        raise FileNotFoundError(f"Object not found: {path}")
+    return target.read_bytes(), "application/octet-stream"
 
 
 def build_path(user_id: str, file_id: str, ext: str) -> str:

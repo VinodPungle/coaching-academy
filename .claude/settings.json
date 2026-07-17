@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker build *)",
+      "Bash(yarn build *)",
+      "Bash(curl -s -o /dev/null http://localhost:8002/api/)",
+      "Bash(curl -s http://localhost:8002/api/)",
+      "Bash(docker stop *)",
+      "Bash(az login *)"
+    ]
+  }
+}

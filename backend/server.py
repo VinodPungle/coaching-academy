@@ -189,16 +189,10 @@ async def startup():
                 )
                 logger.info(f"Backfilled demo_scope on {r.modified_count} {coll_name}")
         await db.system_flags.insert_one({"_id": "demo_content_tag_v2", "at": datetime.now(timezone.utc).isoformat()})
-    # Initialise persistent object storage (best-effort; do not block startup on failure)
-    try:
-        import storage_service
-        if storage_service.is_configured():
-            storage_service.init_storage()
-            logger.info("Object storage initialised")
-        else:
-            logger.warning("EMERGENT_LLM_KEY not set — object storage is unavailable, uploads will fail")
-    except Exception as exc:  # noqa: BLE001
-        logger.error(f"Object storage init failed: {exc}")
+    # Object storage (Azure Blob when AZURE_STORAGE_CONNECTION_STRING is set, else local disk) needs no init step
+    import storage_service
+    if not os.environ.get("AZURE_STORAGE_CONNECTION_STRING"):
+        logger.warning("AZURE_STORAGE_CONNECTION_STRING not set — uploads will be stored on local container disk (not persistent across deploys)")
 
     # One-time backfill: copy any legacy files still on disk to object storage
     try:
