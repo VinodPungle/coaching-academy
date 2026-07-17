@@ -1,8 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { GraduationCap, ArrowLeft, User } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, fileUrl } from "@/lib/api";
 import { useSiteConfig } from "@/context/SiteConfigContext";
+
+const resolvePhoto = (u) => {
+  if (!u) return "";
+  return u.startsWith("/api/files/") ? fileUrl(u) : u;
+};
 
 export default function TeachersPublic() {
   const { brand_name, landing } = useSiteConfig();
@@ -66,28 +71,34 @@ export default function TeachersPublic() {
             </aside>
             <article className="border border-zinc-200 p-6 md:p-8" data-testid="teacher-profile">
               {selected ? (
-                <>
-                  <div className="flex items-start gap-5">
-                    <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-zinc-100 overflow-hidden flex items-center justify-center shrink-0">
+                <div className="grid md:grid-cols-[1fr_180px] gap-6 md:gap-8">
+                  <div className="min-w-0 order-2 md:order-1">
+                    <h2 className="font-heading text-2xl md:text-3xl font-black tracking-tight" data-testid="teacher-name">{selected.display_name || selected.name}</h2>
+                    {selected.subtitle && <p className="text-sm text-zinc-500 mt-1" data-testid="teacher-subtitle">{selected.subtitle}</p>}
+                    {selected.bio ? (
+                      <p className="mt-5 text-[15px] leading-relaxed text-zinc-700 whitespace-pre-line" data-testid="teacher-bio">
+                        {selected.bio}
+                      </p>
+                    ) : (
+                      <p className="mt-5 text-sm text-zinc-400 italic" data-testid="teacher-bio-empty">Profile bio not added yet.</p>
+                    )}
+                  </div>
+                  <div className="order-1 md:order-2 shrink-0">
+                    <div className="w-[145px] h-[180px] md:w-[160px] md:h-[200px] bg-zinc-100 border border-zinc-200 overflow-hidden flex items-center justify-center" data-testid="teacher-photo-wrap">
                       {selected.photo_url ? (
-                        <img src={selected.photo_url} alt={selected.display_name || selected.name} className="w-full h-full object-cover" />
+                        <img
+                          src={resolvePhoto(selected.photo_url)}
+                          alt={selected.display_name || selected.name}
+                          className="w-full h-full object-cover"
+                          data-testid="teacher-photo-img"
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        />
                       ) : (
-                        <User className="w-10 h-10 text-zinc-400" strokeWidth={1.5} />
+                        <User className="w-16 h-16 text-zinc-400" strokeWidth={1.5} data-testid="teacher-photo-placeholder" />
                       )}
                     </div>
-                    <div className="min-w-0">
-                      <h2 className="font-heading text-2xl md:text-3xl font-black tracking-tight" data-testid="teacher-name">{selected.display_name || selected.name}</h2>
-                      {selected.subtitle && <p className="text-sm text-zinc-500 mt-1" data-testid="teacher-subtitle">{selected.subtitle}</p>}
-                    </div>
                   </div>
-                  {selected.bio ? (
-                    <p className="mt-6 text-[15px] leading-relaxed text-zinc-700 whitespace-pre-line" data-testid="teacher-bio">
-                      {selected.bio}
-                    </p>
-                  ) : (
-                    <p className="mt-6 text-sm text-zinc-400 italic" data-testid="teacher-bio-empty">Profile bio not added yet.</p>
-                  )}
-                </>
+                </div>
               ) : (
                 <p className="text-sm text-zinc-500">Select a teacher to view their profile.</p>
               )}

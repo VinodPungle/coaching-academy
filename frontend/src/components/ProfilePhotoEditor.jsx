@@ -34,7 +34,7 @@ export default function ProfilePhotoEditor({ value, onChange, testidPrefix = "pr
     toast.success("Photo URL set");
   };
 
-  const preview = value ? (value.startsWith("/api/files/") ? fileUrl(value.replace("/api/files/", "")) : value) : "";
+  const preview = value ? (value.startsWith("/api/files/") ? fileUrl(value) : value) : "";
 
   return (
     <div className="space-y-3" data-testid={`${testidPrefix}-editor`}>

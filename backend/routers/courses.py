@@ -15,10 +15,13 @@ class CourseBody(BaseModel):
     subject: str
     description: str = ""
     thumbnail: str = ""
+    image_url: str = ""
     price: float = 0
     is_free: bool = False
     duration: str = ""
     published: bool = True
+    syllabus_url: Optional[str] = None       # /api/files/{id} or empty string to remove
+    syllabus_filename: Optional[str] = None
 
 
 class SectionBody(BaseModel):
@@ -127,9 +130,40 @@ async def update_course(course_id: str, body: CourseBody, user: dict = Depends(r
     doc = await db.courses.find_one({"_id": course_id, "teacher_id": user["id"]})
     if not doc:
         raise HTTPException(status_code=404, detail="Course not found")
-    await db.courses.update_one({"_id": course_id}, {"$set": body.model_dump()})
-    doc.update(body.model_dump())
+    # Preserve syllabus if the caller didn't send them (don't wipe on partial edits)
+    update = body.model_dump(exclude_unset=True)
+    await db.courses.update_one({"_id": course_id}, {"$set": update})
+    doc.update(update)
     return course_out(doc)
+
+
+class SyllabusBody(BaseModel):
+    url: str
+    filename: str = ""
+
+
+@router.put("/courses/{course_id}/syllabus")
+async def set_syllabus(course_id: str, body: SyllabusBody, user: dict = Depends(require_role("teacher", "admin"))):
+    """Owner-only. Accepts a /api/files/{id} URL (from a prior file upload)."""
+    url = (body.url or "").strip()
+    if not url:
+        raise HTTPException(status_code=400, detail="Syllabus URL is required")
+    if not (url.startswith("/api/files/") or url.startswith("http://") or url.startswith("https://")):
+        raise HTTPException(status_code=400, detail="Syllabus URL must be an /api/files/ path or http(s) URL")
+    course = await db.courses.find_one({"_id": course_id, "teacher_id": user["id"]})
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    await db.courses.update_one({"_id": course_id}, {"$set": {"syllabus_url": url, "syllabus_filename": (body.filename or "").strip()}})
+    return {"syllabus_url": url, "syllabus_filename": body.filename}
+
+
+@router.delete("/courses/{course_id}/syllabus")
+async def remove_syllabus(course_id: str, user: dict = Depends(require_role("teacher", "admin"))):
+    course = await db.courses.find_one({"_id": course_id, "teacher_id": user["id"]})
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    await db.courses.update_one({"_id": course_id}, {"$unset": {"syllabus_url": "", "syllabus_filename": ""}})
+    return {"message": "Syllabus removed"}
 
 
 @router.delete("/courses/{course_id}")

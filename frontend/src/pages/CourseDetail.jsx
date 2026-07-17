@@ -389,7 +389,25 @@ export default function CourseDetail() {
           <div className="flex gap-6 text-sm text-zinc-500 mt-4 flex-wrap">
             <span>Instructor: <span className="font-semibold text-zinc-950">{course.teacher_name}</span></span>
             {course.duration && <span>{course.duration}</span>}
-            <span className="inline-flex items-center gap-1"><Users className="w-4 h-4" />{course.enrolled_count} enrolled</span>
+            {user.role === "student" ? (
+              course.syllabus_url ? (
+                <a
+                  href={course.syllabus_url.startsWith("/api/files/") ? fileUrl(course.syllabus_url) : course.syllabus_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  data-testid="course-detail-syllabus-link"
+                  className="inline-flex items-center gap-1 font-semibold text-blue-700 hover:underline"
+                >
+                  <FileText className="w-4 h-4" /> Syllabus
+                </a>
+              ) : (
+                <span data-testid="course-detail-syllabus-none" className="inline-flex items-center gap-1 text-zinc-400 italic" title="Syllabus not available yet">
+                  <FileText className="w-4 h-4" /> Syllabus not available yet
+                </span>
+              )
+            ) : (
+              <span className="inline-flex items-center gap-1" data-testid="course-detail-enrolled-count"><Users className="w-4 h-4" />{course.enrolled_count} enrolled</span>
+            )}
           </div>
         </div>
         {!isOwner && !course.enrolled && (

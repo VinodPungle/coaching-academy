@@ -4,7 +4,13 @@ import { useAuth } from "@/context/AuthContext";
 import { api, formatApiError } from "@/lib/api";
 import EnrollModal from "@/components/EnrollModal";
 import { toast } from "sonner";
-import { Plus, Users, Clock } from "lucide-react";
+import { Plus, Users, Clock, FileText } from "lucide-react";
+import { fileUrl } from "@/lib/api";
+
+const syllabusHref = (url) => {
+  if (!url) return "";
+  return url.startsWith("/api/files/") ? fileUrl(url) : url;
+};
 
 function CourseCard({ course, footer }) {
   return (
@@ -14,12 +20,32 @@ function CourseCard({ course, footer }) {
         <span className="text-xs uppercase tracking-[0.15em] font-semibold text-blue-700">{course.subject}</span>
         <h3 className="font-heading font-bold mt-1.5 leading-snug">{course.title}</h3>
         <p className="text-xs text-zinc-500 mt-2 line-clamp-2 flex-1">{course.description}</p>
-        <div className="flex items-center gap-4 text-xs text-zinc-500 mt-3">
+        <div className="flex items-center gap-4 text-xs text-zinc-500 mt-3 flex-wrap">
           <span className="inline-flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{course.duration}</span>
           {course.is_free || !course.price ? (
             <span className="font-bold text-green-700 text-xs uppercase tracking-[0.15em]" data-testid={`course-free-badge-${course.id}`}>Free</span>
           ) : (
             <span className="font-semibold text-zinc-950">₹{course.price}</span>
+          )}
+          {course.syllabus_url ? (
+            <a
+              href={syllabusHref(course.syllabus_url)}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              data-testid={`course-syllabus-link-${course.id}`}
+              className="inline-flex items-center gap-1 font-semibold text-blue-700 hover:underline"
+            >
+              <FileText className="w-3.5 h-3.5" /> Syllabus
+            </a>
+          ) : (
+            <span
+              data-testid={`course-syllabus-none-${course.id}`}
+              className="inline-flex items-center gap-1 text-zinc-400 italic cursor-not-allowed"
+              title="Syllabus not available yet"
+            >
+              <FileText className="w-3.5 h-3.5" /> Not available yet
+            </span>
           )}
         </div>
         <div className="mt-4">{footer}</div>
