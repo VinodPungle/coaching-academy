@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { formatApiError } from "@/lib/api";
-import { GraduationCap } from "lucide-react";
+import { GraduationCap, Eye, EyeOff } from "lucide-react";
 import { useSiteConfig } from "@/context/SiteConfigContext";
 
 export default function AuthPage() {
@@ -12,6 +12,7 @@ export default function AuthPage() {
   const [form, setForm] = useState({ name: "", email: "", password: "", phone: "" });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const { login, register } = useAuth();
   const navigate = useNavigate();
   const { brand_name } = useSiteConfig();
@@ -114,15 +115,27 @@ export default function AuthPage() {
                     </Link>
                   )}
                 </div>
-                <input
-                  data-testid="auth-password-input"
-                  type="password"
-                  required
-                  value={form.password}
-                  onChange={set("password")}
-                  className="mt-1.5 w-full border border-zinc-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-700"
-                  placeholder="••••••••"
-                />
+                <div className="relative mt-1.5">
+                  <input
+                    data-testid="auth-password-input"
+                    type={showPassword ? "text" : "password"}
+                    required
+                    value={form.password}
+                    onChange={set("password")}
+                    className="w-full border border-zinc-300 px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-700"
+                    placeholder="••••••••"
+                  />
+                  <button
+                    type="button"
+                    data-testid="auth-password-toggle"
+                    onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    title={showPassword ? "Hide password" : "Show password"}
+                    className="absolute inset-y-0 right-0 flex items-center px-3 text-zinc-400 hover:text-zinc-950"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
               {error && (
                 <p data-testid="auth-error-message" className="text-sm text-red-600 border border-red-200 bg-red-50 px-3 py-2">
