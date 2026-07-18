@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from database import db
 from auth_utils import get_current_user, optional_user, require_role, can_see_demo_content, is_demo_teacher_email
 from notify import notify, email_template, ACADEMY_NAME
+import storage_service
 
 router = APIRouter(tags=["courses"])
 
@@ -142,9 +143,27 @@ class SyllabusBody(BaseModel):
     filename: str = ""
 
 
+def _managed_file_id(url: str) -> Optional[str]:
+    """Extract the file id from an /api/files/{id} URL; None for external URLs."""
+    if url and url.startswith("/api/files/"):
+        return url.removeprefix("/api/files/").split("?")[0].strip("/")
+    return None
+
+
+async def _delete_syllabus_file(url: str):
+    """Remove an uploaded syllabus's storage object + metadata so it is no longer accessible."""
+    file_id = _managed_file_id(url)
+    if not file_id:
+        return
+    meta = await db.files.find_one_and_delete({"_id": file_id})
+    if meta and meta.get("storage_path"):
+        storage_service.delete_object(meta["storage_path"])
+
+
 @router.put("/courses/{course_id}/syllabus")
 async def set_syllabus(course_id: str, body: SyllabusBody, user: dict = Depends(require_role("teacher", "admin"))):
-    """Owner-only. Accepts a /api/files/{id} URL (from a prior file upload)."""
+    """Owner-only. Accepts a /api/files/{id} URL (from a prior file upload).
+    Uploaded files must be PDFs; replacing removes the previous uploaded syllabus file."""
     url = (body.url or "").strip()
     if not url:
         raise HTTPException(status_code=400, detail="Syllabus URL is required")
@@ -153,7 +172,17 @@ async def set_syllabus(course_id: str, body: SyllabusBody, user: dict = Depends(
     course = await db.courses.find_one({"_id": course_id, "teacher_id": user["id"]})
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
+    file_id = _managed_file_id(url)
+    if file_id:
+        meta = await db.files.find_one({"_id": file_id})
+        if not meta:
+            raise HTTPException(status_code=404, detail="Syllabus file not found — upload it first")
+        if meta.get("ext") != ".pdf":
+            raise HTTPException(status_code=400, detail="Syllabus must be a PDF file")
+    old_url = course.get("syllabus_url") or ""
     await db.courses.update_one({"_id": course_id}, {"$set": {"syllabus_url": url, "syllabus_filename": (body.filename or "").strip()}})
+    if old_url and old_url != url:
+        await _delete_syllabus_file(old_url)
     return {"syllabus_url": url, "syllabus_filename": body.filename}
 
 
@@ -162,7 +191,11 @@ async def remove_syllabus(course_id: str, user: dict = Depends(require_role("tea
     course = await db.courses.find_one({"_id": course_id, "teacher_id": user["id"]})
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
+    old_url = course.get("syllabus_url") or ""
+    if not old_url:
+        raise HTTPException(status_code=404, detail="This course has no syllabus to remove")
     await db.courses.update_one({"_id": course_id}, {"$unset": {"syllabus_url": "", "syllabus_filename": ""}})
+    await _delete_syllabus_file(old_url)
     return {"message": "Syllabus removed"}
 
 

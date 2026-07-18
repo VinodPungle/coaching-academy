@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { api, formatApiError, uploadFile, fileUrl } from "@/lib/api";
+import { syllabusFileError } from "@/lib/syllabus";
 import EnrollModal from "@/components/EnrollModal";
 import { toast } from "sonner";
 import {
@@ -37,6 +38,7 @@ export default function CourseDetail() {
   const [uploadingVideoFor, setUploadingVideoFor] = useState(null);
   const [videoProgress, setVideoProgress] = useState({}); // { subTopicId: pct }
   const [editingCourse, setEditingCourse] = useState(null); // {title, subject, description, duration, price, image_url, is_free}
+  const [syllabusBusy, setSyllabusBusy] = useState(false);
 
   const isOwner = user.role !== "student";
   const canEditCourse = user.role === "teacher" && course && course.teacher_id === user.id;
@@ -345,6 +347,31 @@ export default function CourseDetail() {
     } catch (err) { toast.error(formatApiError(err)); }
   };
 
+  const handleSyllabusFile = async (file) => {
+    if (!file) return;
+    const invalid = syllabusFileError(file);
+    if (invalid) return toast.error(invalid);
+    setSyllabusBusy(true);
+    try {
+      const res = await uploadFile(file);
+      await api.put(`/courses/${id}/syllabus`, { url: res.url, filename: res.filename });
+      toast.success(course.syllabus_url ? "Syllabus replaced" : "Syllabus uploaded");
+      load();
+    } catch (err) { toast.error(formatApiError(err)); }
+    finally { setSyllabusBusy(false); }
+  };
+
+  const deleteSyllabus = async () => {
+    if (!window.confirm("Delete the syllabus for this course? Students will no longer be able to view it.")) return;
+    setSyllabusBusy(true);
+    try {
+      await api.delete(`/courses/${id}/syllabus`);
+      toast.success("Syllabus deleted");
+      load();
+    } catch (err) { toast.error(formatApiError(err)); }
+    finally { setSyllabusBusy(false); }
+  };
+
   const deleteCourse = async () => {
     if (!course) return;
     const confirm1 = window.confirm(
@@ -407,6 +434,34 @@ export default function CourseDetail() {
               )
             ) : (
               <span className="inline-flex items-center gap-1" data-testid="course-detail-enrolled-count"><Users className="w-4 h-4" />{course.enrolled_count} enrolled</span>
+            )}
+            {canEditCourse && (
+              course.syllabus_url ? (
+                <span className="inline-flex items-center gap-4 flex-wrap">
+                  <a
+                    href={course.syllabus_url.startsWith("/api/files/") ? fileUrl(course.syllabus_url) : course.syllabus_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    data-testid="syllabus-view-link"
+                    title={course.syllabus_filename || "View syllabus"}
+                    className="inline-flex items-center gap-1 font-semibold text-blue-700 hover:underline"
+                  >
+                    <FileText className="w-4 h-4" /> View Syllabus
+                  </a>
+                  <label className={`inline-flex items-center gap-1 font-semibold text-blue-700 cursor-pointer hover:underline ${syllabusBusy ? "opacity-50 pointer-events-none" : ""}`}>
+                    <Upload className="w-4 h-4" /> {syllabusBusy ? "Uploading…" : "Replace Syllabus"}
+                    <input type="file" data-testid="syllabus-replace-input" className="hidden" accept=".pdf,application/pdf" onChange={(e) => { handleSyllabusFile(e.target.files?.[0]); e.target.value = ""; }} />
+                  </label>
+                  <button onClick={deleteSyllabus} disabled={syllabusBusy} data-testid="syllabus-delete-button" className="inline-flex items-center gap-1 font-semibold text-red-600 hover:underline disabled:opacity-50">
+                    <Trash2 className="w-4 h-4" /> Delete Syllabus
+                  </button>
+                </span>
+              ) : (
+                <label className={`inline-flex items-center gap-1 font-semibold text-blue-700 cursor-pointer hover:underline ${syllabusBusy ? "opacity-50 pointer-events-none" : ""}`} data-testid="syllabus-upload-label">
+                  <Upload className="w-4 h-4" /> {syllabusBusy ? "Uploading syllabus…" : "Upload Syllabus"}
+                  <input type="file" data-testid="syllabus-upload-input" className="hidden" accept=".pdf,application/pdf" onChange={(e) => { handleSyllabusFile(e.target.files?.[0]); e.target.value = ""; }} />
+                </label>
+              )
             )}
           </div>
         </div>

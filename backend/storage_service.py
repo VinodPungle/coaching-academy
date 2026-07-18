@@ -6,8 +6,8 @@ Backends, chosen by environment:
      (container name from AZURE_STORAGE_CONTAINER, default "uploads").
   2. Local disk — fallback for development; files land in backend/uploads/.
 
-Public API used by routers/files.py: is_configured(), build_path(),
-put_object(), get_object().
+Public API used by routers: is_configured(), build_path(),
+put_object(), get_object(), delete_object().
 """
 import os
 import logging
@@ -78,6 +78,24 @@ def get_object(path: str) -> tuple[bytes, str]:
     if not target.exists():
         raise FileNotFoundError(f"Object not found: {path}")
     return target.read_bytes(), "application/octet-stream"
+
+
+def delete_object(path: str) -> None:
+    """Remove the object at `path`. Best-effort: a missing object is not an error."""
+    if _azure_connection_string():
+        blob = _get_container().get_blob_client(path)
+        try:
+            blob.delete_blob()
+        except Exception as exc:  # noqa: BLE001 — cleanup must not block the caller
+            logger.warning("Failed to delete blob %s: %s", path, exc)
+        return
+
+    target = LOCAL_STORAGE_DIR / path
+    try:
+        if target.exists():
+            target.unlink()
+    except OSError as exc:
+        logger.warning("Failed to delete local object %s: %s", path, exc)
 
 
 def build_path(user_id: str, file_id: str, ext: str) -> str:
