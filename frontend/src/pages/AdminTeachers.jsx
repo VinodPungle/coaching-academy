@@ -1,3 +1,7 @@
+// Admin-only per-teacher overview ("/app/teachers") — a summary row per
+// teacher (courses/students/tests/etc counts), expandable in place to a
+// detail view (GET /admin/teachers/:id/detail) rather than navigating to
+// a separate page.
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { GraduationCap, BookOpen, Users, FileQuestion, ClipboardList, Radio, ChevronRight, ChevronDown } from "lucide-react";

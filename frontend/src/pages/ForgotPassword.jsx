@@ -1,3 +1,8 @@
+// Step 1 of password reset ("/forgot-password") — collects an email and
+// POSTs to /auth/forgot-password. Always shows the same "check your inbox"
+// success state regardless of whether the email actually matched an
+// account (see auth.py's forgot_password for why). Step 2 is
+// ResetPassword.jsx, reached via the link emailed to the user.
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api, formatApiError } from "@/lib/api";

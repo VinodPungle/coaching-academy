@@ -1,3 +1,7 @@
+// Step 2 of password reset ("/reset-password?token=..."). The token comes
+// from the link emailed by ForgotPassword's flow; if it's missing from the
+// URL the form is replaced with an error pointing back to that page. On
+// submit, POSTs { token, password } to /auth/reset-password.
 import { useState } from "react";
 import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { api, formatApiError } from "@/lib/api";

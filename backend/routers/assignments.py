@@ -1,3 +1,7 @@
+# Assignments: teacher-posted homework (optionally linked to a course),
+# with student text/link/file submissions and teacher grading. Unlike
+# tests, grading here is manual (a numeric grade + free-text feedback),
+# not auto-computed.
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
@@ -33,6 +37,10 @@ class GradeBody(BaseModel):
 
 @router.get("/assignments")
 async def list_assignments(user: dict = Depends(get_current_user)):
+    """Teachers/admins see their own assignments with a submission_count
+    per one (aggregated in a single query rather than N+1). Students see
+    assignments for their enrolled courses (+ unlinked/global ones) with
+    their own submission (if any) attached as my_submission."""
     if user["role"] in ("teacher", "admin"):
         docs = await db.assignments.find({"teacher_id": user["id"]}).sort("created_at", -1).to_list(200)
         ids = [d["_id"] for d in docs]
@@ -95,6 +103,7 @@ async def create_assignment(body: AssignmentBody, user: dict = Depends(require_r
 
 @router.delete("/assignments/{assignment_id}")
 async def delete_assignment(assignment_id: str, user: dict = Depends(require_role("teacher", "admin"))):
+    """Owner-only delete, cascades to remove all student submissions too."""
     result = await db.assignments.delete_one({"_id": assignment_id, "teacher_id": user["id"]})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Assignment not found")
@@ -104,6 +113,8 @@ async def delete_assignment(assignment_id: str, user: dict = Depends(require_rol
 
 @router.post("/assignments/{assignment_id}/submit")
 async def submit_assignment(assignment_id: str, body: SubmissionBody, user: dict = Depends(require_role("student"))):
+    """One submission per student per assignment — resubmitting is blocked
+    (no "replace my submission" flow exists yet)."""
     assignment = await db.assignments.find_one({"_id": assignment_id})
     if not assignment:
         raise HTTPException(status_code=404, detail="Assignment not found")
@@ -130,6 +141,7 @@ async def submit_assignment(assignment_id: str, body: SubmissionBody, user: dict
 
 @router.get("/assignments/{assignment_id}/submissions")
 async def list_submissions(assignment_id: str, user: dict = Depends(require_role("teacher", "admin"))):
+    """All student submissions for one assignment, newest first."""
     docs = await db.submissions.find({"assignment_id": assignment_id}).sort("submitted_at", -1).to_list(500)
     for d in docs:
         d["id"] = d.pop("_id")
@@ -138,6 +150,7 @@ async def list_submissions(assignment_id: str, user: dict = Depends(require_role
 
 @router.put("/submissions/{submission_id}/grade")
 async def grade_submission(submission_id: str, body: GradeBody, user: dict = Depends(require_role("teacher", "admin"))):
+    """Sets grade + feedback on a submission and emails/notifies the student."""
     sub = await db.submissions.find_one({"_id": submission_id})
     if not sub:
         raise HTTPException(status_code=404, detail="Submission not found")

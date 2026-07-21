@@ -1,9 +1,14 @@
+// Per-test ranked leaderboard ("/app/tests/:id/leaderboard"), open to any
+// authenticated user — the backend also computes the caller's own
+// rank/percentile if they're on the board (see test_leaderboard in
+// backend/routers/tests.py).
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { ArrowLeft, Trophy, Medal } from "lucide-react";
 import dayjs from "dayjs";
 
+// Gold/silver/bronze text colors for ranks 1-3.
 const PODIUM = ["text-yellow-500", "text-zinc-400", "text-amber-700"];
 
 export default function Leaderboard() {

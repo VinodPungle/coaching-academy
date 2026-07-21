@@ -1,3 +1,7 @@
+// Bell icon + dropdown mounted in PortalLayout, present on every /app/*
+// page. Also doubles as the UI for opting into WhatsApp notifications
+// (saves a phone number via PUT /auth/profile — see notify.py for how
+// that number then gets used).
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, formatApiError } from "@/lib/api";
@@ -26,6 +30,9 @@ export const NotificationsBell = () => {
     api.get("/notifications").then((r) => setData(r.data)).catch(() => {});
   }, []);
 
+  // Poll every 30s — simplest way to approximate "live" notifications
+  // without adding websockets, acceptable given the notification volume
+  // this app generates.
   useEffect(() => {
     load();
     const t = setInterval(load, 30000);

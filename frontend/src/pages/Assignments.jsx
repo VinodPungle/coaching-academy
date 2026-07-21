@@ -1,3 +1,7 @@
+// Assignments list ("/app/assignments") — teachers create assignments and
+// grade student submissions inline here; students submit (text/link/file,
+// one submission each, see backend's one-per-student guard) and see their
+// grade + feedback once graded.
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { api, formatApiError, uploadFile, fileUrl } from "@/lib/api";

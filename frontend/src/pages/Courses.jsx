@@ -1,3 +1,7 @@
+// Course catalog ("/app/courses") — students see "All Courses" / "My
+// Courses" tabs with an enroll flow; teachers/admins see their own courses
+// plus a "create course" action. CourseCard here is the compact list-view
+// tile; the full management/detail view lives in CourseDetail.jsx.
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";

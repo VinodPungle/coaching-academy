@@ -1,3 +1,6 @@
+# Registration, login/logout, "who am I", profile, and password reset.
+# See backend/auth_utils.py for the JWT/hashing internals this router
+# calls into — this file is the HTTP surface, auth_utils.py is the logic.
 import os
 import uuid
 import secrets
@@ -33,6 +36,8 @@ class LoginBody(BaseModel):
 
 
 def public_user(doc: dict) -> dict:
+    """Strip a raw user document down to the safe subset returned to the
+    client (never password_hash) and rename _id -> id."""
     return {
         "id": doc["_id"],
         "name": doc["name"],
@@ -43,6 +48,10 @@ def public_user(doc: dict) -> dict:
 
 @router.post("/register")
 async def register(body: RegisterBody, response: Response):
+    """Public signup — only student/teacher can self-register (admin
+    accounts are seeded, never created via this endpoint). Issues a token
+    immediately so the user is logged in right after registering, no
+    separate login step required."""
     if body.role not in ("student", "teacher"):
         raise HTTPException(status_code=400, detail="Role must be student or teacher")
     if len(body.password) < 6:
@@ -68,6 +77,8 @@ async def register(body: RegisterBody, response: Response):
 
 @router.post("/login")
 async def login(body: LoginBody, response: Response):
+    """Same "invalid email or password" error for both a wrong password and
+    a nonexistent email, so login failures don't reveal which accounts exist."""
     email = body.email.lower().strip()
     user = await db.users.find_one({"email": email})
     if not user or not verify_password(body.password, user["password_hash"]):
@@ -79,17 +90,24 @@ async def login(body: LoginBody, response: Response):
 
 @router.post("/logout")
 async def logout(response: Response):
+    """Clears the fallback cookie. The frontend's actual sign-out is
+    deleting the JWT from localStorage — the JWT itself remains valid
+    until it expires, there's no server-side token revocation."""
     response.delete_cookie("access_token", path="/")
     return {"message": "Logged out"}
 
 
 @router.get("/me")
 async def me(user: dict = Depends(get_current_user)):
+    """Called by AuthContext.jsx on every app load to rehydrate the
+    logged-in user from the stored token."""
     return user
 
 
 @router.put("/profile")
 async def update_profile(body: ProfileBody, user: dict = Depends(get_current_user)):
+    """Currently only the phone number is editable here (used for WhatsApp
+    notifications — see notify.py)."""
     phone = body.phone.strip()
     if phone and not phone.startswith("+"):
         raise HTTPException(status_code=400, detail="Phone must include country code, e.g. +919876543210")
@@ -108,6 +126,11 @@ class ResetPasswordBody(BaseModel):
 
 @router.post("/forgot-password")
 async def forgot_password(body: ForgotPasswordBody):
+    """Always returns the same generic success message whether or not the
+    email exists, so this endpoint can't be used to enumerate registered
+    accounts — the token is only actually created/emailed if a match is found.
+    FRONTEND_URL must point at whichever deployment of the frontend is
+    actually live, or the emailed link leads to a dead/wrong environment."""
     email = body.email.lower().strip()
     user = await db.users.find_one({"email": email})
     if user:
@@ -135,6 +158,10 @@ async def forgot_password(body: ForgotPasswordBody):
 
 @router.post("/reset-password")
 async def reset_password(body: ResetPasswordBody):
+    """Validates the token (exists, unused, unexpired — the token doc's
+    `expires_at` is also a Mongo TTL index, see server.py, so it may
+    already be physically gone from the DB once past 1 hour), then sets
+    the new password and marks the token used so it can't be replayed."""
     if len(body.password) < 6:
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
     rec = await db.password_reset_tokens.find_one({"_id": body.token})

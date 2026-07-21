@@ -1,3 +1,8 @@
+# Aggregated "home page" data for students and teachers — each endpoint
+# runs several counts/aggregations across other collections rather than
+# exposing a single new one. Demo accounts' activity is excluded from
+# these aggregates for everyone except the demo accounts themselves, so
+# public-demo usage doesn't skew a real teacher's stats.
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends
 from database import db
@@ -15,6 +20,9 @@ async def _demo_teacher_ids() -> list:
 
 @router.get("/dashboard/student")
 async def student_dashboard(user: dict = Depends(require_role("student"))):
+    """Student home page: enrollment/test/assignment counts, average test
+    score, next 5 upcoming classes visible to this student, 3 latest
+    announcements, and up to 8 free courses they haven't enrolled in yet."""
     now = datetime.now(timezone.utc).isoformat()
     hide_demo = not can_see_demo_content(user)
     demo_teachers = await _demo_teacher_ids() if hide_demo else []
@@ -76,6 +84,10 @@ async def student_dashboard(user: dict = Depends(require_role("student"))):
 
 @router.get("/dashboard/teacher/analytics")
 async def teacher_analytics(user: dict = Depends(require_role("teacher", "admin"))):
+    """Per-course/per-test/per-assignment breakdown for the teacher's
+    analytics view — enrollment counts, attempt counts + average score,
+    and submission/grading progress, each computed via a single Mongo
+    aggregation (grouped by the parent id) instead of looping per-item."""
     courses = await db.courses.find({"teacher_id": user["id"]}).to_list(100)
     course_ids = [c["_id"] for c in courses]
     demo_students = [u["_id"] async for u in db.users.find({"is_demo": True}, {"_id": 1})]
@@ -140,6 +152,8 @@ async def teacher_analytics(user: dict = Depends(require_role("teacher", "admin"
 
 @router.get("/dashboard/teacher")
 async def teacher_dashboard(user: dict = Depends(require_role("teacher", "admin"))):
+    """Teacher home page: high-level totals (courses/students/tests/attempts)
+    plus the next 5 of their own upcoming live classes."""
     now = datetime.now(timezone.utc).isoformat()
     demo_ids = await demo_user_ids()
     # Exclude demo students from the teacher's aggregate counts (unless the teacher IS the demo teacher).

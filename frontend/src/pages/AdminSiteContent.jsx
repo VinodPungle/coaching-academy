@@ -1,3 +1,7 @@
+// Admin-only landing-page copy editor ("/app/site-content") — every field
+// here maps 1:1 to a key in SiteConfigContext's landing object / the
+// backend's DEFAULT_LANDING (site_config.py), letting the admin change the
+// homepage's text without a code deploy.
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Save } from "lucide-react";

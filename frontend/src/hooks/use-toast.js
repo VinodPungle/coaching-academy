@@ -1,5 +1,11 @@
 "use client";
 // Inspired by react-hot-toast library
+// NOTE: this is shadcn/ui's generated toast state manager, kept alongside
+// components/ui/toast.jsx + toaster.jsx. The app does NOT actually use
+// it — every toast.success()/toast.error() call in the codebase goes
+// through the `sonner` library instead (see App.js's <Toaster/> and any
+// page's `import { toast } from "sonner"`). This file is unused vendor
+// scaffolding, left over from the shadcn/ui setup.
 import * as React from "react"
 
 const TOAST_LIMIT = 1

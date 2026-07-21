@@ -57,6 +57,9 @@ async def list_profiles(user: dict | None = Depends(optional_user)):
 
 @router.put("/teacher-profiles/{teacher_id}")
 async def update_profile(teacher_id: str, body: ProfileBody, user: dict = Depends(get_current_user)):
+    """A teacher may only edit their own profile; admin may edit any.
+    Upserts into db.teacher_profiles since a teacher may not have a
+    profile document yet on their first edit."""
     if user["role"] != "admin" and user["id"] != teacher_id:
         raise HTTPException(status_code=403, detail="You can only edit your own profile")
     teacher = await db.users.find_one({"_id": teacher_id, "role": "teacher"})

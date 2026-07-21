@@ -1,3 +1,7 @@
+# Mock-test / quiz engine: teacher-authored multiple-choice tests (each
+# question stores its correct_index), student attempts, auto-grading, a
+# per-test leaderboard, and a review-your-answers view. A test can
+# optionally be linked to a course (course_id) or stand alone.
 import uuid
 from datetime import datetime, timezone
 from typing import List, Dict, Optional
@@ -10,6 +14,9 @@ router = APIRouter(tags=["tests"])
 
 
 async def resolve_course(course_id):
+    """Look up a course by id for denormalizing its title onto the test
+    doc (so listing tests doesn't need a join); raises if course_id is
+    given but doesn't exist."""
     if not course_id:
         return None, None
     course = await db.courses.find_one({"_id": course_id})
@@ -45,6 +52,9 @@ class AttemptBody(BaseModel):
 
 
 def test_out(doc: dict, hide_answers: bool = False) -> dict:
+    """Shared response shaper. hide_answers=True strips correct_index from
+    every question — used whenever a student is looking at an un-attempted
+    test, so the answer key never reaches the browser before they submit."""
     doc["id"] = doc.pop("_id")
     if hide_answers:
         for q in doc.get("questions", []):
@@ -54,6 +64,9 @@ def test_out(doc: dict, hide_answers: bool = False) -> dict:
 
 @router.get("/tests")
 async def list_tests(user: dict = Depends(get_current_user)):
+    """Teachers/admins see their own tests with an attempt_count each.
+    Students see published tests for their enrolled courses (+ unlinked
+    ones), answer keys stripped, with their own score attached if attempted."""
     if user["role"] in ("teacher", "admin"):
         docs = await db.tests.find({"teacher_id": user["id"]}).sort("created_at", -1).to_list(200)
         ids = [d["_id"] for d in docs]
@@ -90,6 +103,8 @@ async def list_tests(user: dict = Depends(get_current_user)):
 
 @router.get("/tests/{test_id}")
 async def get_test(test_id: str, user: dict = Depends(get_current_user)):
+    """Single test detail — answers hidden for students, attached with
+    their existing attempt (if any) so the frontend can show "already taken"."""
     doc = await db.tests.find_one({"_id": test_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Test not found")
@@ -106,6 +121,8 @@ async def get_test(test_id: str, user: dict = Depends(get_current_user)):
 
 @router.post("/tests")
 async def create_test(body: TestBody, user: dict = Depends(require_role("teacher", "admin"))):
+    """Each question gets a fresh uuid on creation; total_marks is derived
+    (summed) from the questions rather than trusted from the client."""
     questions = [{"id": str(uuid.uuid4()), **q.model_dump()} for q in body.questions]
     course_id, course_name = await resolve_course(body.course_id)
     doc = {
@@ -130,6 +147,9 @@ async def create_test(body: TestBody, user: dict = Depends(require_role("teacher
 
 @router.put("/tests/{test_id}")
 async def update_test(test_id: str, body: TestBody, user: dict = Depends(require_role("teacher", "admin"))):
+    """Full replace of a test's questions on every edit — note this
+    re-generates every question's id (uuid), even ones whose text didn't
+    change, so nothing elsewhere may assume a question id is stable across edits."""
     existing = await db.tests.find_one({"_id": test_id, "teacher_id": user["id"]})
     if not existing:
         raise HTTPException(status_code=404, detail="Test not found")
@@ -153,6 +173,8 @@ async def update_test(test_id: str, body: TestBody, user: dict = Depends(require
 
 @router.delete("/tests/{test_id}")
 async def delete_test(test_id: str, user: dict = Depends(require_role("teacher", "admin"))):
+    """Deletion is blocked once any student has attempted the test (to
+    preserve their score history) — the teacher must unpublish instead."""
     test = await db.tests.find_one({"_id": test_id, "teacher_id": user["id"]})
     if not test:
         raise HTTPException(status_code=404, detail="Test not found")
@@ -168,6 +190,10 @@ async def delete_test(test_id: str, user: dict = Depends(require_role("teacher",
 
 @router.post("/tests/{test_id}/attempt")
 async def submit_attempt(test_id: str, body: AttemptBody, user: dict = Depends(require_role("student"))):
+    """Auto-grades: `body.answers` maps question id -> chosen option index;
+    a correct answer scores that question's `marks`. Blocked on a second
+    attempt unless the teacher enabled retakes_allowed, in which case the
+    old attempt is overwritten in place (not kept as history)."""
     test = await db.tests.find_one({"_id": test_id})
     if not test:
         raise HTTPException(status_code=404, detail="Test not found")
@@ -205,6 +231,9 @@ async def submit_attempt(test_id: str, body: AttemptBody, user: dict = Depends(r
 
 @router.get("/tests/{test_id}/review")
 async def review_test(test_id: str, user: dict = Depends(require_role("student"))):
+    """Post-attempt only: returns the full test (with answer key this time,
+    since they've already attempted it) alongside their submitted answers,
+    so the frontend can show right/wrong per question."""
     attempt = await db.test_attempts.find_one({"test_id": test_id, "student_id": user["id"]})
     if not attempt:
         raise HTTPException(status_code=403, detail="Attempt the test before reviewing answers")
@@ -217,6 +246,9 @@ async def review_test(test_id: str, user: dict = Depends(require_role("student")
 
 @router.get("/tests/{test_id}/leaderboard")
 async def test_leaderboard(test_id: str, user: dict = Depends(get_current_user)):
+    """Ranks every attempt by score (ties broken by earliest submission),
+    and additionally computes the caller's own rank/percentile if they're
+    on the board — open to any authenticated user, not owner-restricted."""
     test = await db.tests.find_one({"_id": test_id})
     if not test:
         raise HTTPException(status_code=404, detail="Test not found")

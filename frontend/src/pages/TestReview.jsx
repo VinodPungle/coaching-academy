@@ -1,3 +1,6 @@
+// Student's own post-attempt answer review ("/app/tests/:id/review") —
+// shows every question with their chosen answer vs. the correct one.
+// Backend 403s here if they haven't attempted the test yet.
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api, formatApiError } from "@/lib/api";

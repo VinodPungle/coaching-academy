@@ -1,3 +1,7 @@
+# Multi-channel notification helper: writes an in-app notification, and
+# (best-effort, fire-and-forget) sends an email via Resend and/or a
+# WhatsApp message via Twilio. Every "notify this user" call in the app
+# routes through `notify()` at the bottom of this file.
 import os
 import uuid
 import asyncio
@@ -13,6 +17,9 @@ ACADEMY_NAME = os.environ.get("ACADEMY_NAME", "Academy for Life Science Exams Pr
 
 
 async def send_email(to: str, subject: str, html: str):
+    """Send one email via Resend. If RESEND_API_KEY isn't set, logs instead
+    of sending — this is the "demo mode" used in local dev / preview envs
+    so nothing breaks without real email credentials."""
     api_key = os.environ.get("RESEND_API_KEY", "").strip()
     if not api_key:
         logger.info(f"[EMAIL demo mode] to={to} subject={subject}")
@@ -37,6 +44,10 @@ async def send_email(to: str, subject: str, html: str):
 
 
 def email_template(title: str, body: str, cta_label: str = "", cta_url: str = "") -> str:
+    """Wrap a title/body (and optional call-to-action button) in a shared
+    inline-styled HTML email layout so every notification email looks the
+    same. `body` is inserted as raw HTML — callers are responsible for
+    escaping any untrusted content before passing it in."""
     button = (
         f'<tr><td style="padding-top:20px"><a href="{cta_url}" style="display:inline-block;background:#1d4ed8;color:#ffffff;padding:12px 24px;font-weight:bold;text-decoration:none;font-family:Arial,sans-serif;font-size:14px">{cta_label}</a></td></tr>'
         if cta_url else ""
@@ -63,6 +74,9 @@ def whatsapp_configured() -> bool:
 
 
 async def send_whatsapp(phone: str, text: str):
+    """Send one WhatsApp message via Twilio. Requires an E.164 phone number
+    (leading '+'); silently no-ops for missing/malformed numbers or when
+    Twilio isn't configured (demo mode, same pattern as send_email)."""
     if not phone or not phone.strip().startswith("+"):
         return None
     if not whatsapp_configured():
@@ -89,7 +103,14 @@ async def send_whatsapp(phone: str, text: str):
 async def notify(user_ids: list, title: str, body: str, link: str = "",
                  email_subject: str = None, email_html: str = None,
                  cc_admin: bool = False):
-    user_ids = list(set(user_ids))
+    """Main entry point routers call to notify one or more users.
+    Always writes an in-app `notifications` doc per user (shown in the bell
+    icon / NotificationsBell.jsx). Email is only sent if `email_subject` is
+    passed; WhatsApp is sent to any recipient with a phone number on file.
+    Both external sends are fired via `asyncio.create_task` — the caller
+    (an API request) does not wait for them, so a slow/failed email/WhatsApp
+    send never delays or breaks the HTTP response."""
+    user_ids = list(set(user_ids))  # de-dupe in case the same user appears twice
     if not user_ids:
         return
     now = datetime.now(timezone.utc).isoformat()

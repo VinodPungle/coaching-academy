@@ -1,9 +1,14 @@
+// Teacher's per-course/per-test/per-assignment charts, rendered inside
+// Dashboard.jsx for teacher/admin users. Data comes from a single call to
+// GET /dashboard/teacher/analytics (backend/routers/dashboard.py), which
+// already does the aggregation — this component only shapes it for recharts.
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
 } from "recharts";
 
+// Truncate long titles so chart x-axis labels don't overlap.
 const short = (s) => (s.length > 18 ? s.slice(0, 16) + "…" : s);
 
 export const TeacherAnalytics = () => {

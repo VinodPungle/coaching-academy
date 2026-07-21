@@ -1,3 +1,8 @@
+// Runtime-editable site copy (brand name + landing page text), fetched
+// from GET /api/site-config (backend/routers/site_config.py) rather than
+// hardcoded, so an admin can change the landing page copy from
+// AdminSiteContent.jsx without a code deploy. Falls back to the constants
+// below until the request resolves (or if it fails).
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/api";
 

@@ -1,3 +1,7 @@
+# Course-completion certificates. A certificate is generated on-demand the
+# first time a student who has finished every lesson requests it (not
+# proactively when they complete the last lesson) — subsequent requests
+# just return the same already-issued certificate.
 import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends
@@ -9,6 +13,9 @@ router = APIRouter(tags=["certificates"])
 
 @router.get("/courses/{course_id}/certificate")
 async def get_certificate(course_id: str, user: dict = Depends(require_role("student"))):
+    """Get-or-create: 400s with a progress message if lessons remain
+    incomplete; otherwise returns the existing certificate or mints a new
+    one with a unique cert_no."""
     enrollment = await db.enrollments.find_one({"course_id": course_id, "student_id": user["id"]})
     if not enrollment:
         raise HTTPException(status_code=403, detail="You are not enrolled in this course")
@@ -45,6 +52,7 @@ async def get_certificate(course_id: str, user: dict = Depends(require_role("stu
 
 @router.get("/student/certificates")
 async def my_certificates(user: dict = Depends(require_role("student"))):
+    """All certificates this student has already earned, newest first."""
     docs = await db.certificates.find({"student_id": user["id"]}).sort("issued_at", -1).to_list(100)
     for d in docs:
         d["id"] = d.pop("_id")

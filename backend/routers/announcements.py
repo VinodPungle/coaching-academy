@@ -1,3 +1,6 @@
+# Announcements: short posts either platform-wide (course_id=None) or
+# scoped to a single course. Teachers/admins post; students see ones for
+# their enrolled courses plus every global one, filtered by demo scope.
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
@@ -18,6 +21,10 @@ class AnnouncementBody(BaseModel):
 
 @router.get("/announcements")
 async def list_announcements(user: dict = Depends(get_current_user)):
+    """Visibility differs by role: teachers see their own + admin's global
+    posts; admins see everything; students see global posts plus ones
+    scoped to a course they're enrolled in (demo content filtered out
+    unless the student can see it)."""
     if user["role"] == "teacher":
         # teacher sees own announcements + admin-posted global announcements
         query = {"$or": [{"teacher_id": user["id"]}, {"posted_by_role": "admin"}]}
@@ -38,6 +45,10 @@ async def list_announcements(user: dict = Depends(get_current_user)):
 
 @router.post("/announcements")
 async def create_announcement(body: AnnouncementBody, user: dict = Depends(require_role("teacher", "admin"))):
+    """Creates the announcement, then notifies (in-app) every affected
+    student — either the linked course's enrolled students, or (for
+    global posts) every real/demo student matching the poster's demo scope,
+    so a demo teacher's announcement never reaches real students."""
     course_name = None
     if body.course_id:
         course = await db.courses.find_one({"_id": body.course_id})
@@ -79,6 +90,8 @@ async def create_announcement(body: AnnouncementBody, user: dict = Depends(requi
 
 @router.delete("/announcements/{announcement_id}")
 async def delete_announcement(announcement_id: str, user: dict = Depends(require_role("teacher", "admin"))):
+    """Admin can delete any announcement; a teacher only their own (owner
+    check folded into the query, same pattern as the rest of the app)."""
     query = {"_id": announcement_id} if user["role"] == "admin" else {"_id": announcement_id, "teacher_id": user["id"]}
     result = await db.announcements.delete_one(query)
     if result.deleted_count == 0:

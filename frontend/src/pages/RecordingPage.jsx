@@ -1,3 +1,7 @@
+// On-demand viewer for a past live class's recording
+// ("/app/live/:id/recording") — same video player + comments pattern as
+// LessonPage.jsx, but sourced from a live_classes doc's recording_url
+// (set by the teacher via LiveClasses.jsx) instead of a course lesson.
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api, formatApiError } from "@/lib/api";

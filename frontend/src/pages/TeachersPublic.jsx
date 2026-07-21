@@ -1,3 +1,7 @@
+// Public teacher directory ("/teachers") — no login required. Lists every
+// teacher's public profile (GET /teacher-profiles); the demo teacher
+// account is excluded server-side. Teachers edit their own bio/photo via
+// TeacherProfileEdit.jsx; admins can edit any via AdminTeacherProfiles.jsx.
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { GraduationCap, ArrowLeft, User } from "lucide-react";

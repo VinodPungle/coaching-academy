@@ -1,3 +1,7 @@
+// Live class schedule ("/app/live") — students see their upcoming/past
+// classes and join links; teachers/admins additionally get a scheduling
+// form (optionally auto-creating a Zoom meeting via the Zoom S2S OAuth
+// integration if configured — see /zoom/config).
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";

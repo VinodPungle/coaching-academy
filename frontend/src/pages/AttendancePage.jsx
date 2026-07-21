@@ -1,3 +1,7 @@
+// Teacher-only view ("/app/live/:id/attendance") of who joined a live
+// class — attendance rows are written by mark_attendance() on the backend
+// when a student clicks through to the meeting link, not by any manual
+// roll-call action here.
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api } from "@/lib/api";

@@ -1,3 +1,7 @@
+// Admin-only leaderboard ("/app/top-performers") — top students ranked by
+// average test score %, grouped either by course or by batch (toggle
+// below). Backed by a single GET /admin/top-performers call that computes
+// both groupings server-side.
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Trophy, BookOpen, Users } from "lucide-react";

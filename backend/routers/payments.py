@@ -96,6 +96,10 @@ def _new_razorpay_receipt(course_id: str, student_id: str) -> str:
 
 @router.post("/payments/razorpay/create-order")
 async def create_razorpay_order(body: RazorpayOrderBody, user: dict = Depends(require_role("student"))):
+    """Step 1 of the online-payment flow: creates a Razorpay order (server
+    to server) for the outstanding balance (or a partial amount) and
+    records it as "created" so verify_razorpay() can later confirm it
+    actually belongs to this student/course."""
     course = await db.courses.find_one({"_id": body.course_id})
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
@@ -146,6 +150,11 @@ class RazorpayVerifyBody(BaseModel):
 
 @router.post("/payments/razorpay/verify")
 async def verify_razorpay(body: RazorpayVerifyBody, user: dict = Depends(require_role("student"))):
+    """Step 2: called by the frontend after Razorpay's checkout widget
+    succeeds. Verifies the HMAC signature (proves the payment is genuine,
+    not spoofed by the client), records it as a normal payment doc via the
+    same _build_payment_doc/_maybe_enroll_and_notify helpers admin-recorded
+    payments use, and marks the order "paid" so re-verification is a no-op."""
     _verify_razorpay_signature(body.razorpay_order_id, body.razorpay_payment_id, body.razorpay_signature)
     order = await db.razorpay_orders.find_one({"_id": body.razorpay_order_id, "student_id": user["id"]})
     if not order:
@@ -203,6 +212,9 @@ class SettingsBody(BaseModel):
 
 @router.put("/admin/settings")
 async def update_settings(body: SettingsBody, user: dict = Depends(require_role("admin"))):
+    """Admin-only, partial update of portal-wide payment settings — demo
+    mode (bypasses paid-enrollment gating platform-wide) and the UPI QR/VPA
+    students see when paying offline."""
     update = {}
     if body.portal_mode is not None:
         if body.portal_mode not in ("demo", "live"):
@@ -373,6 +385,9 @@ async def admin_edit_payment(payment_id: str, body: PaymentEditBody, user: dict 
 
 @router.delete("/admin/payments/{payment_id}")
 async def admin_delete_payment(payment_id: str, user: dict = Depends(require_role("admin"))):
+    """Removes a (usually erroneous) payment record. Does NOT un-enroll the
+    student even if this was the payment that unlocked access — enrollment
+    and payment records are intentionally not linked for deletion."""
     payment = await db.payments.find_one({"_id": payment_id})
     if not payment:
         raise HTTPException(status_code=404, detail="Payment not found")
@@ -426,6 +441,9 @@ async def _total_paid(student_id: str, course_id: str, exclude_id: Optional[str]
 
 @router.get("/admin/students/{student_id}/course-payments/{course_id}")
 async def admin_course_payments(student_id: str, course_id: str, user: dict = Depends(require_role("admin"))):
+    """Full payment ledger for one student+course pair: every payment,
+    fee/paid/outstanding totals, and whether they're actually enrolled —
+    the admin-facing "how much has this student paid" screen."""
     course = await db.courses.find_one({"_id": course_id})
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
@@ -458,6 +476,8 @@ async def my_payments(user: dict = Depends(require_role("student"))):
 
 @router.get("/student/courses/{course_id}/dues")
 async def my_course_dues(course_id: str, user: dict = Depends(require_role("student"))):
+    """How much the current student still owes for one course — powers the
+    "pay remaining balance" UI."""
     course = await db.courses.find_one({"_id": course_id})
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")

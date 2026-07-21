@@ -1,3 +1,8 @@
+// Admin-only manual enrollment/payment tool ("/app/enrollments") — pick a
+// student + course to see their payment ledger (fee/paid/outstanding), and
+// either record an offline payment or grant free access outright. This is
+// the UI for the admin-side of backend/routers/payments.py's
+// admin_record_payment / admin_grant_enrollment.
 import { useEffect, useState } from "react";
 import { api, formatApiError } from "@/lib/api";
 import { toast } from "sonner";

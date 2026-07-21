@@ -1,3 +1,8 @@
+// Course-completion certificate ("/certificate/:courseId") — printable
+// (see the Printer button further down, which calls window.print()).
+// GET-or-create semantics live entirely on the backend (get_certificate
+// in backend/routers/certificates.py); this page just displays whatever
+// it gets back, or the "keep learning" error if lessons remain incomplete.
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api, formatApiError } from "@/lib/api";

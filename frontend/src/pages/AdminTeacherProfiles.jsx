@@ -1,3 +1,7 @@
+// Admin-only editor for ANY teacher's public profile ("/app/teacher-profiles")
+// — a select-teacher-then-edit-their-bio UI. Compare with
+// TeacherProfileEdit.jsx, the near-identical page a teacher uses to edit
+// only their own profile (no teacher-picker there).
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Save, User } from "lucide-react";

@@ -1,6 +1,12 @@
 // health-endpoints.js
 // API endpoints for health checks and monitoring
-
+//
+// Registers the /health/* routes directly on the CRA/craco dev server's
+// underlying Express app (see craco.config.js, which calls
+// setupHealthEndpoints() only when ENABLE_HEALTH_CHECK=true). Reads its
+// data from a WebpackHealthPlugin instance (webpack-health-plugin.js),
+// which is what actually tracks compile state — this file is purely the
+// HTTP-facing layer on top of it. Dev-only; not present in production.
 const os = require('os');
 
 const SERVER_START_TIME = Date.now();

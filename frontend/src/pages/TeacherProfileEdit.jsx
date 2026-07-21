@@ -1,3 +1,7 @@
+// "My Profile" self-service editor for a teacher ("/app/my-profile") —
+// edits the display name/subtitle/bio/photo shown on the public
+// TeachersPublic.jsx directory. Route-guards itself against non-teacher
+// roles rather than relying on App.js to hide the route.
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Save } from "lucide-react";

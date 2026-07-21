@@ -1,3 +1,8 @@
+// Announcements feed ("/app/announcements") — teachers/admins post (global
+// or course-scoped); students see global posts plus ones for courses
+// they're enrolled in. Visibility filtering happens server-side (see
+// list_announcements in backend/routers/announcements.py); this page just
+// renders whatever the API returns.
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { api, formatApiError } from "@/lib/api";

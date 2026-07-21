@@ -1,3 +1,7 @@
+# Batches: named sub-groups of students within a course (e.g. "Morning
+# Batch", schedule-bound, optional capacity). Students without a batch are
+# implicitly "self-paced". Batches are a course sub-resource, so every
+# mutation here re-checks the calling teacher owns the parent course.
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
@@ -18,6 +22,8 @@ class BatchBody(BaseModel):
 
 @router.get("/courses/{course_id}/batches")
 async def list_batches(course_id: str, user: dict = Depends(get_current_user)):
+    """List a course's batches with each one's live enrolled_count — open to
+    any authenticated user (students need this to pick a batch at enrollment)."""
     docs = await db.batches.find({"course_id": course_id}).sort("created_at", 1).to_list(100)
     result = []
     for d in docs:
@@ -29,6 +35,7 @@ async def list_batches(course_id: str, user: dict = Depends(get_current_user)):
 
 @router.post("/courses/{course_id}/batches")
 async def create_batch(course_id: str, body: BatchBody, user: dict = Depends(require_role("teacher", "admin"))):
+    """Owner-only. 404s (not 403) if the course doesn't exist or isn't theirs."""
     course = await db.courses.find_one({"_id": course_id, "teacher_id": user["id"]})
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
@@ -47,6 +54,8 @@ async def create_batch(course_id: str, body: BatchBody, user: dict = Depends(req
 
 @router.delete("/batches/{batch_id}")
 async def delete_batch(batch_id: str, user: dict = Depends(require_role("teacher", "admin"))):
+    """Deletes the batch and un-assigns its students back to self-paced
+    (batch_id -> None) rather than deleting their enrollments."""
     result = await db.batches.delete_one({"_id": batch_id, "teacher_id": user["id"]})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Batch not found")
@@ -56,6 +65,7 @@ async def delete_batch(batch_id: str, user: dict = Depends(require_role("teacher
 
 @router.get("/batches/{batch_id}/students")
 async def batch_students(batch_id: str, user: dict = Depends(require_role("teacher", "admin"))):
+    """Roster of students currently assigned to this batch."""
     enrollments = await db.enrollments.find({"batch_id": batch_id}).to_list(500)
     result = []
     for e in enrollments:

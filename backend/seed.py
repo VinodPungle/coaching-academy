@@ -1,9 +1,16 @@
+# One-time demo-data seeding, run on every backend startup (see server.py's
+# @app.on_event("startup")). Each block below is guarded by a "does this
+# already exist?" check, so re-running on an already-seeded database is a
+# no-op — this is what lets it run safely on every deploy, not just the
+# very first one.
 import uuid
 import os
 from datetime import datetime, timezone, timedelta
 from database import db
 from auth_utils import hash_password
 
+# Cover images per course subject, shown on course cards when no custom
+# thumbnail is set.
 SUBJECT_THUMBS = {
     "Physics": "https://images.unsplash.com/photo-1636466497217-26a8cbeaf0aa?w=800&q=60",
     "Chemistry": "https://images.unsplash.com/photo-1603126857599-f6e157fa2fe6?w=800&q=60",
@@ -13,6 +20,11 @@ SUBJECT_THUMBS = {
 
 
 async def seed():
+    """Ensure demo accounts + sample content exist. Called once per backend
+    startup; every step below only inserts if the corresponding data is
+    missing, so it's safe to call repeatedly (idempotent)."""
+    # Real admin account, driven by env vars (ADMIN_EMAIL/ADMIN_PASSWORD) —
+    # not a hardcoded demo login like the teacher/student below.
     admin_email = os.environ.get("ADMIN_EMAIL", "").lower().strip()
     if admin_email and not await db.users.find_one({"email": admin_email}):
         await db.users.insert_one({
@@ -24,6 +36,9 @@ async def seed():
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
 
+    # Fixed demo teacher/student logins (see auth_utils.DEMO_EMAILS) used
+    # throughout the app for public demos and this repo's manual/automated
+    # testing — passwords are intentionally simple, not meant for real users.
     teacher_email = "teacher@bioexamprep.com"
     student_email = "student@bioexamprep.com"
 
@@ -54,6 +69,8 @@ async def seed():
     tid = teacher["_id"]
     tname = teacher["name"]
 
+    # Sample courses, one per subject, each with a small Section → Sub-Topic
+    # → Lesson tree so a fresh environment has something to click through.
     if await db.courses.count_documents({}) == 0:
         courses_data = [
             ("IIT-JAM Physics Complete Course", "Physics", "Master Mechanics, Electromagnetism, Quantum Mechanics and Thermodynamics with 120+ hours of live and recorded lectures aligned to the latest JAM syllabus.", 4999, "6 months"),
@@ -93,6 +110,8 @@ async def seed():
                 "created_at": datetime.now(timezone.utc).isoformat(),
             })
 
+    # Sample upcoming live classes (1-3 days out) so LiveClasses.jsx has
+    # something to show without a teacher having scheduled one manually.
     if await db.live_classes.count_documents({}) == 0:
         now = datetime.now(timezone.utc)
         classes = [
@@ -110,6 +129,8 @@ async def seed():
                 "created_at": now.isoformat(),
             })
 
+    # Sample multiple-choice mock tests (Physics + Mathematics), each
+    # question storing its correct_index so tests.py can auto-grade attempts.
     if await db.tests.count_documents({}) == 0:
         physics_qs = [
             ("A particle moves in a circle of radius R with constant speed v. Its average acceleration over half a revolution is:", ["zero", "2v²/πR", "v²/R", "4v²/πR"], 1),
@@ -138,6 +159,7 @@ async def seed():
                 "created_at": datetime.now(timezone.utc).isoformat(),
             })
 
+    # Sample assignments with due dates a few days out.
     if await db.assignments.count_documents({}) == 0:
         now = datetime.now(timezone.utc)
         for title, subject, desc, days in [
@@ -151,6 +173,8 @@ async def seed():
                 "created_at": now.isoformat(),
             })
 
+    # Two default batches (Morning/Evening) per seeded course, so
+    # enrollment/batch-selection UI has real options to pick from.
     if await db.batches.count_documents({}) == 0:
         courses = await db.courses.find({}).to_list(10)
         now = datetime.now(timezone.utc)
@@ -167,6 +191,7 @@ async def seed():
                     "created_at": now.isoformat(),
                 })
 
+    # Sample platform-wide announcements (not tied to any one course).
     if await db.announcements.count_documents({}) == 0:
         for title, body in [
             ("JAM 2027 Registration Opens Soon", "IIT Bombay has announced that JAM 2027 registrations will open in the first week of September. Keep your documents ready."),

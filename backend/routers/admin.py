@@ -1,3 +1,8 @@
+# Admin-only platform oversight: dashboard stats, user management
+# (search/role-change/delete), per-teacher breakdowns, and a top-performers
+# leaderboard. Every endpoint requires require_role("admin"); most also
+# exclude demo accounts/content from real-platform aggregates so public
+# demo activity doesn't skew what the admin sees.
 from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
@@ -13,6 +18,9 @@ class RoleBody(BaseModel):
 
 @router.get("/stats")
 async def admin_stats(user: dict = Depends(require_role("admin"))):
+    """Top-level platform counters (students, teachers, courses,
+    enrollments, tests, attempts, revenue) plus the 6 most recently
+    registered users — all excluding demo accounts/content."""
     demo_ids = await demo_user_ids()
     real_user_q = {"is_demo": {"$ne": True}}
     students = await db.users.count_documents({"role": "student", **real_user_q})
@@ -50,6 +58,8 @@ async def admin_stats(user: dict = Depends(require_role("admin"))):
 
 @router.get("/users")
 async def admin_users(q: Optional[str] = None, role: Optional[str] = None, user: dict = Depends(require_role("admin"))):
+    """Search/filter every user (any role, including demo — this endpoint
+    is not demo-filtered since admins need to see everything)."""
     query = {}
     if q:
         query["$or"] = [{"name": {"$regex": q, "$options": "i"}}, {"email": {"$regex": q, "$options": "i"}}]
@@ -69,7 +79,9 @@ class CleanupResponse(BaseModel):
 
 @router.post("/cleanup-test-users")
 async def cleanup_test_users(user: dict = Depends(require_role("admin"))):
-    """Delete users whose name starts with 'TEST_' or 'TEST ' (test artefacts). Also cleans their courses/enrollments."""
+    """Delete users whose name starts with 'TEST_' or 'TEST ' (test artefacts). Also cleans their courses/enrollments.
+    Housekeeping endpoint for wiping accounts left behind by automated test
+    suites (see backend/tests/*.py, which create TEST_-prefixed users)."""
     query = {"$or": [
         {"name": {"$regex": "^TEST[_ ]", "$options": "i"}},
         {"email": {"$regex": "^test[_-]?(teach|it3|new)", "$options": "i"}},
@@ -100,6 +112,8 @@ async def cleanup_test_users(user: dict = Depends(require_role("admin"))):
 
 @router.put("/users/{user_id}/role")
 async def change_role(user_id: str, body: RoleBody, user: dict = Depends(require_role("admin"))):
+    """Change a user's role. Self-role-change is blocked so an admin can't
+    accidentally lock themselves out of admin tools."""
     if body.role not in ("student", "teacher", "admin"):
         raise HTTPException(status_code=400, detail="Invalid role")
     if user_id == user["id"]:
@@ -112,6 +126,10 @@ async def change_role(user_id: str, body: RoleBody, user: dict = Depends(require
 
 @router.delete("/users/{user_id}")
 async def delete_user(user_id: str, user: dict = Depends(require_role("admin"))):
+    """Deletes a user and cascades all of their owned data — for a teacher
+    this includes every course they created (and everything nested under
+    those courses' enrollments/tests/etc.), so this is destructive and
+    irreversible; there's no soft-delete/undo."""
     if user_id == user["id"]:
         raise HTTPException(status_code=400, detail="You cannot delete your own account")
     target = await db.users.find_one({"_id": user_id})
@@ -142,6 +160,7 @@ async def delete_user(user_id: str, user: dict = Depends(require_role("admin")))
 
 @router.get("/payments")
 async def admin_payments(user: dict = Depends(require_role("admin"))):
+    """All real (non-demo, non-test) payments plus their total, newest first."""
     demo_ids = await demo_user_ids()
     query = {"is_test_txn": {"$ne": True}}
     if demo_ids:
@@ -155,17 +174,15 @@ async def admin_payments(user: dict = Depends(require_role("admin"))):
 
 @router.get("/teachers")
 async def admin_teachers(user: dict = Depends(require_role("admin"))):
-    """Per-teacher breakdown: courses, students, tests, live classes, assignments (upcoming/past)."""
+    """Per-teacher breakdown: courses, students, tests, live classes, assignments (upcoming/past).
+    Every count below is computed with one grouped aggregation per
+    metric (not per-teacher loops), then merged into each teacher's row."""
     from datetime import datetime, timezone
     now_iso = datetime.now(timezone.utc).isoformat()
     teachers = await db.users.find({"role": "teacher", "is_demo": {"$ne": True}}, {"password_hash": 0}).sort("created_at", -1).to_list(500)
     if not teachers:
         return []
     tids = [t["_id"] for t in teachers]
-
-    # aggregate counts per teacher
-    def agg_count(pipeline):
-        return db.courses.aggregate(pipeline).to_list(1000)
 
     course_counts = {r["_id"]: r["n"] for r in await db.courses.aggregate([
         {"$match": {"teacher_id": {"$in": tids}}},
@@ -216,6 +233,9 @@ async def admin_teachers(user: dict = Depends(require_role("admin"))):
 
 @router.get("/teachers/{teacher_id}/detail")
 async def admin_teacher_detail(teacher_id: str, user: dict = Depends(require_role("admin"))):
+    """Drill-down for one teacher: their courses (with student counts),
+    tests (with attempt counts), live classes, and assignments — the
+    expanded view behind admin_teachers()'s summary row."""
     teacher = await db.users.find_one({"_id": teacher_id, "role": "teacher"}, {"password_hash": 0})
     if not teacher:
         raise HTTPException(status_code=404, detail="Teacher not found")
@@ -265,7 +285,10 @@ async def admin_teacher_detail(teacher_id: str, user: dict = Depends(require_rol
 
 @router.get("/top-performers")
 async def admin_top_performers(limit: int = 5, user: dict = Depends(require_role("admin"))):
-    """Top performers per batch and per course, ranked by average test %. Excludes demo users."""
+    """Top performers per batch and per course, ranked by average test %. Excludes demo users.
+    First computes each student's overall avg_pct across all their test
+    attempts (one aggregation), then for every course/batch, filters that
+    global stats map down to its enrolled students and sorts."""
     demo_ids = await demo_user_ids()
     match = {"total": {"$gt": 0}}
     if demo_ids:

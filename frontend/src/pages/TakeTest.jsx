@@ -1,3 +1,8 @@
+// Student's test-taking screen ("/app/tests/:id/take") — timed, single
+// question set, submits answers as {question_id: chosen_option_index} to
+// POST /tests/:id/attempt for server-side auto-grading. `submittedRef`
+// guards against double-submission (e.g. from both a manual submit click
+// and the countdown timer hitting zero in the same tick).
 import { useEffect, useState, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api, formatApiError } from "@/lib/api";

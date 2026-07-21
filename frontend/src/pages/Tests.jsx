@@ -1,3 +1,7 @@
+// Test/quiz list ("/app/tests") — students see published tests with their
+// own attempt status; teachers/admins see their own tests (with an
+// attempt_count) plus create/delete actions. Actually authoring questions
+// happens in TestBuilder.jsx; taking a test happens in TakeTest.jsx.
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";

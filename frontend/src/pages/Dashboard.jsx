@@ -1,3 +1,8 @@
+// The route "/app/dashboard" — one page, three completely different
+// bodies depending on user.role: admin gets <AdminDashboard/>, teacher gets
+// stats + <TeacherAnalytics/> charts, student gets progress stats +
+// upcoming classes + free-course suggestions. See the role check further
+// down this file for where the branching happens.
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";

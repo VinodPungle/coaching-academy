@@ -1,3 +1,7 @@
+// Admin-only user management ("/app/users") — search/filter every user,
+// change roles, delete accounts (cascading, irreversible — see
+// backend/routers/admin.py delete_user), and a "cleanup test users"
+// housekeeping action for wiping TEST_-prefixed accounts left by test suites.
 import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { api, formatApiError } from "@/lib/api";

@@ -1,3 +1,7 @@
+// Teacher-only view ("/app/tests/:id/results") of every student's attempt
+// on one test, plus the class average — distinct from Leaderboard.jsx
+// (student-facing, rank-focused) and TestReview.jsx (single student's own
+// answer-by-answer review).
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api } from "@/lib/api";

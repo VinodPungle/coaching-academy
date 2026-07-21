@@ -1,8 +1,14 @@
+# App entry point: builds the FastAPI app, mounts every router under
+# /api, configures CORS, and — on startup — runs one-time data migrations
+# plus demo-data seeding. Run locally with:
+#   uvicorn server:app --host 127.0.0.1 --port 8001
+# In production this same module is what the Dockerfile's CMD launches
+# inside the Azure Container App.
 from dotenv import load_dotenv
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
+load_dotenv(ROOT_DIR / '.env')  # load backend/.env before anything reads os.environ
 
 import os
 import uuid
@@ -18,14 +24,21 @@ from routers import auth, courses, tests, live_classes, assignments, announcemen
 
 app = FastAPI(title=f"{ACADEMY_NAME} LMS")
 
+# Every route in every router below is actually mounted at /api/<router's path>
+# (e.g. courses.router's "/courses" endpoint becomes GET /api/courses).
 api_router = APIRouter(prefix="/api")
 
 
 @api_router.get("/")
 async def root():
+    """Unauthenticated health-check / sanity endpoint — hitting /api/ confirms
+    the backend is up and reachable."""
     return {"message": f"{ACADEMY_NAME} LMS API"}
 
 
+# One include_router() per domain — see backend/routers/*.py. Adding a new
+# router file requires both the import above and an include_router() call
+# here, or its routes simply won't exist.
 api_router.include_router(auth.router)
 api_router.include_router(courses.router)
 api_router.include_router(tests.router)
@@ -46,6 +59,10 @@ api_router.include_router(teacher_profiles.router)
 
 app.include_router(api_router)
 
+# CORS_ORIGINS is a comma-separated allowlist (e.g.
+# "https://bioexamprep.com,https://www.bioexamprep.com") — set per
+# environment via the Container App's env vars; defaults to "*" (allow all)
+# only if the env var is entirely unset, which should never happen in prod.
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
@@ -60,11 +77,21 @@ logger = logging.getLogger(__name__)
 
 @app.on_event("startup")
 async def startup():
+    """Runs once when the backend process boots (every deploy/restart).
+    Two kinds of work happen here:
+      1. Index creation — safe to repeat every time, MongoDB no-ops if the
+         index already exists.
+      2. One-time data migrations — each guarded by either a natural
+         "already migrated?" check or a db.system_flags document, so they
+         don't redo work (or damage data) on every subsequent restart.
+    Order matters: migrations run before seed() so seeded demo data lands
+    in its final, already-migrated shape."""
+    # Uniqueness/lookup indexes the app's query patterns rely on.
     await db.users.create_index("email", unique=True)
-    await db.enrollments.create_index([("course_id", 1), ("student_id", 1)], unique=True)
-    await db.test_attempts.create_index([("test_id", 1), ("student_id", 1)], unique=True)
-    await db.password_reset_tokens.create_index("expires_at", expireAfterSeconds=0)
-    await db.notifications.create_index([("user_id", 1), ("created_at", -1)])
+    await db.enrollments.create_index([("course_id", 1), ("student_id", 1)], unique=True)  # one enrollment per student per course
+    await db.test_attempts.create_index([("test_id", 1), ("student_id", 1)], unique=True)  # one attempt record per student per test
+    await db.password_reset_tokens.create_index("expires_at", expireAfterSeconds=0)  # MongoDB TTL index — Atlas auto-deletes expired reset tokens
+    await db.notifications.create_index([("user_id", 1), ("created_at", -1)])  # fast "my recent notifications" lookups
     # One-time email domain migration: @jamacademy.com and @rgpacademy.com -> @bioexamprep.com
     async for u in db.users.find({"email": {"$regex": "@(jamacademy|rgpacademy)\\.com$", "$options": "i"}}):
         new_email = u["email"].split("@")[0] + "@bioexamprep.com"
@@ -96,7 +123,10 @@ async def startup():
             await db.users.update_one({"_id": u["_id"]}, {"$set": {"email": new_email}})
             logger.info(f"Migrated user email {u['email']} -> {new_email}")
 
-    # One-time purge of non-demo accounts (guarded by system_flags to prevent re-runs)
+    # One-time purge of non-demo accounts (guarded by system_flags to prevent re-runs).
+    # This was a historical cleanup (the app used to have real test-signup data
+    # mixed in with the seeded demo accounts); it deletes every user that isn't
+    # one of the three fixed demo logins, cascading their owned content.
     DEMO_EMAILS = {"admin@bioexamprep.com", "teacher@bioexamprep.com", "student@bioexamprep.com"}
     purge_flag = await db.system_flags.find_one({"_id": "purge_non_demo_v1"})
     if not purge_flag:
@@ -189,7 +219,9 @@ async def startup():
                 )
                 logger.info(f"Backfilled demo_scope on {r.modified_count} {coll_name}")
         await db.system_flags.insert_one({"_id": "demo_content_tag_v2", "at": datetime.now(timezone.utc).isoformat()})
-    # Object storage (Azure Blob when AZURE_STORAGE_CONNECTION_STRING is set, else local disk) needs no init step
+    # Object storage (Azure Blob when AZURE_STORAGE_CONNECTION_STRING is set, else local disk) needs no init step.
+    # Warn loudly if running without Blob configured — local-disk uploads don't
+    # survive a container restart/redeploy, so this is a real production risk.
     import storage_service
     if not os.environ.get("AZURE_STORAGE_CONNECTION_STRING"):
         logger.warning("AZURE_STORAGE_CONNECTION_STRING not set — uploads will be stored on local container disk (not persistent across deploys)")
@@ -238,4 +270,5 @@ async def _backfill_legacy_files_to_object_storage():
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
+    """Cleanly close the MongoDB connection pool when the process exits."""
     client.close()

@@ -60,6 +60,9 @@ async def _check_live_class_access(class_id: str, user: dict) -> dict:
 
 @router.get("/lessons/{course_id}/{sub_topic_id}/{lesson_id}/comments")
 async def list_lesson_comments(course_id: str, sub_topic_id: str, lesson_id: str, user: dict = Depends(get_current_user)):
+    """Comments are threaded (parent_id) but flat-stored — the frontend
+    reconstructs the tree client-side. Returns enabled=False (no comments
+    payload needed) if the teacher toggled discussion off for this sub-topic."""
     sub_topic = await _check_lesson_access(course_id, sub_topic_id, user)
     if not sub_topic.get("comments_enabled", True):
         return {"enabled": False, "comments": []}
@@ -132,6 +135,8 @@ async def post_recording_comment(class_id: str, body: CommentBody, user: dict = 
 
 @router.delete("/comments/{comment_id}")
 async def delete_comment(comment_id: str, user: dict = Depends(get_current_user)):
+    """Three ways to be allowed to delete: you wrote it, you're an admin,
+    or you're the teacher who owns the course/live-class the comment is on."""
     c = await db.comments.find_one({"_id": comment_id})
     if not c:
         raise HTTPException(status_code=404, detail="Comment not found")

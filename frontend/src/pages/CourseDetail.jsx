@@ -1,3 +1,11 @@
+// The single biggest page in the app — course detail AND course
+// management live in one component, split by role: `isOwner` (teacher/
+// admin) sees curriculum-editing controls, batches, enrolled-students
+// table, and syllabus management; students see a read-only curriculum
+// with progress tracking and enroll/certificate actions. Curriculum edits
+// (sections/sub-topics/lessons, reordering, etc.) all call the nested
+// endpoints in backend/routers/courses.py and reload the whole course
+// afterward rather than optimistically patching local state.
 import { useEffect, useState, useCallback } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";

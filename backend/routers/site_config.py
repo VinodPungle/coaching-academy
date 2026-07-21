@@ -81,6 +81,9 @@ async def get_site_config():
 
 @router.put("/site-config")
 async def update_site_config(body: SiteConfigBody, user: dict = Depends(require_role("admin"))):
+    """Admin-only. Partial update — only fields present in the body are
+    changed; landing copy is updated key-by-key against DEFAULT_LANDING's
+    known keys (unknown keys are silently ignored, not errors)."""
     # Ensure doc exists with defaults so we can $set landing.<key> without conflict
     await _current_settings()
     update = {"updated_at": datetime.now(timezone.utc).isoformat()}

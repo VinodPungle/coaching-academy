@@ -1,3 +1,9 @@
+// Teacher-only test author/editor ("/app/tests/new" and
+// "/app/tests/:id/edit" — same component for both, branching on whether
+// an :id param is present). Every question is fixed at 4 options; on save
+// the whole question list is sent as a full replace (see courses' sibling
+// pattern — the backend re-generates every question id on every edit, so
+// nothing here should assume a question's id survives an edit).
 import { useState, useEffect } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { api, formatApiError } from "@/lib/api";

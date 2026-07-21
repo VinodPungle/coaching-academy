@@ -1,3 +1,9 @@
+// App shell: wraps everything in the site-config + auth providers, defines
+// every route, and gates the /app/* portal behind login via <Protected>.
+// One page component per route (frontend/src/pages/*.jsx) — role-specific
+// behavior within a shared route (e.g. teacher vs. student view of the
+// same page) is handled inside each page component, not by having
+// separate routes per role.
 import { useEffect } from "react";
 import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
@@ -37,6 +43,9 @@ import AdminTeacherProfiles from "@/pages/AdminTeacherProfiles";
 import TeacherProfileEdit from "@/pages/TeacherProfileEdit";
 
 function Protected({ children }) {
+  // Route guard: only checks "is someone logged in?" — role-specific
+  // access control happens inside individual page components (e.g. an
+  // admin-only page checks user.role itself rather than a dedicated route wrapper).
   const { user, loading } = useAuth();
   if (loading)
     return (
@@ -54,6 +63,7 @@ function App() {
       <AuthProvider>
         <BrowserRouter>
           <Routes>
+            {/* Fully public routes — no login required */}
             <Route path="/" element={<Landing />} />
             <Route path="/teachers" element={<TeachersPublic />} />
             <Route path="/auth" element={<AuthPage />} />
@@ -67,6 +77,8 @@ function App() {
                 </Protected>
               }
             />
+            {/* Everything under /app/* requires login and shares the
+                PortalLayout chrome (sidebar/nav) as a parent route */}
             <Route
               path="/app"
               element={

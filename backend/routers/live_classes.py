@@ -1,3 +1,7 @@
+# Scheduled live classes — optionally linked to a course (and within it, a
+# batch), optionally backed by an auto-created Zoom meeting (zoom_service.py)
+# or a manually pasted link. Also covers attendance tracking and recordings
+# (a live class can later get a recording_url for on-demand viewing).
 import re
 import uuid
 from datetime import datetime, timezone, timedelta
@@ -58,10 +62,17 @@ class LiveClassBody(BaseModel):
 
 @router.get("/zoom/config")
 async def zoom_config(user: dict = Depends(require_role("teacher", "admin"))):
+    """Lets the frontend show/hide the "auto-create Zoom meeting" option
+    when scheduling a class, based on whether Zoom creds are set."""
     return {"configured": zoom_configured()}
 
 
 async def student_class_query(student_id: str) -> dict:
+    """Build the Mongo filter for "classes this student can see": global
+    classes (no course_id) plus, for each course they're enrolled in,
+    classes for that course that are either open to the whole course
+    (batch_id None) or scoped to their specific batch. Reused by both
+    list_live_classes and the student dashboard."""
     enrollments = await db.enrollments.find({"student_id": student_id}).to_list(500)
     ors = [{"course_id": None}, {"course_id": {"$exists": False}}]
     for e in enrollments:
@@ -71,6 +82,9 @@ async def student_class_query(student_id: str) -> dict:
 
 @router.get("/live-classes")
 async def list_live_classes(course_id: Optional[str] = None, user: dict = Depends(get_current_user)):
+    """Teachers see their own; admins see all; students see whatever
+    student_class_query() resolves to (filtered by demo scope). Optional
+    course_id query param narrows further to one course's classes."""
     if user["role"] in ("teacher", "admin"):
         query = {"teacher_id": user["id"]} if user["role"] == "teacher" else {}
     else:
@@ -87,6 +101,10 @@ async def list_live_classes(course_id: Optional[str] = None, user: dict = Depend
 
 @router.post("/live-classes")
 async def create_live_class(body: LiveClassBody, user: dict = Depends(require_role("teacher", "admin"))):
+    """Creates the class — if create_zoom is set, calls Zoom's API for a
+    real meeting link instead of using body.meeting_link — then notifies
+    every affected student (course/batch-enrolled, or all real/demo
+    students matching the poster's demo scope for a global class)."""
     course_name = None
     batch_name = None
     if body.course_id:
@@ -151,6 +169,8 @@ async def create_live_class(body: LiveClassBody, user: dict = Depends(require_ro
 
 @router.delete("/live-classes/{class_id}")
 async def delete_live_class(class_id: str, user: dict = Depends(require_role("teacher", "admin"))):
+    """Admin can delete any class, teacher only their own. Cascades to
+    attendance records and any recording comments."""
     query = {"_id": class_id} if user["role"] == "admin" else {"_id": class_id, "teacher_id": user["id"]}
     result = await db.live_classes.delete_one(query)
     if result.deleted_count == 0:
@@ -168,6 +188,8 @@ class RescheduleBody(BaseModel):
 
 @router.put("/live-classes/{class_id}/reschedule")
 async def reschedule_live_class(class_id: str, body: RescheduleBody, user: dict = Depends(require_role("teacher", "admin"))):
+    """Moves a class to a new start time (must be in the future) and
+    optionally updates duration/meeting link, then notifies students."""
     # validate not in past
     try:
         new_start = datetime.fromisoformat(body.start_time.replace("Z", "+00:00"))
@@ -224,6 +246,8 @@ async def remove_recording(class_id: str, user: dict = Depends(require_role("tea
 
 @router.post("/live-classes/{class_id}/attend")
 async def mark_attendance(class_id: str, user: dict = Depends(require_role("student"))):
+    """Records that this student joined the class (called when they click
+    through to the meeting link) and hands back the link itself."""
     live = await db.live_classes.find_one({"_id": class_id})
     if not live:
         raise HTTPException(status_code=404, detail="Live class not found")

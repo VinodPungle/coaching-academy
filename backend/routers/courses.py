@@ -1,3 +1,9 @@
+# The largest and most central router: course CRUD, curriculum management
+# (Section -> Sub-Topic -> Lesson, all stored as nested arrays inside the
+# course document — no separate collections), student enrollment/batches,
+# syllabus attachment, and the roster/batch-assignment views teachers use.
+# Ownership is enforced the same way everywhere: `teacher_id: user["id"]`
+# folded into the Mongo query so a non-owner's request 404s.
 import uuid
 from datetime import datetime, timezone
 from typing import Optional, List
@@ -59,12 +65,16 @@ class LessonBody(BaseModel):
 
 
 def course_out(doc: dict) -> dict:
+    """Shared response shaper — rename Mongo's _id to id."""
     doc["id"] = doc.pop("_id")
     return doc
 
 
 @router.get("/courses")
 async def list_courses(user: dict | None = Depends(optional_user)):
+    """Public course catalog — published courses only, demo-scoped ones
+    hidden unless the caller can see demo content (optional_user means
+    this also works for anonymous/logged-out visitors browsing courses)."""
     query = {"published": True}
     if not can_see_demo_content(user):
         query["demo_scope"] = {"$ne": True}
@@ -74,6 +84,8 @@ async def list_courses(user: dict | None = Depends(optional_user)):
 
 @router.get("/teacher/courses")
 async def teacher_courses(user: dict = Depends(require_role("teacher", "admin"))):
+    """A teacher's own courses (published or not) with each one's live
+    enrolled_count computed via a single aggregation."""
     docs = await db.courses.find({"teacher_id": user["id"]}).sort("created_at", -1).to_list(200)
     ids = [d["_id"] for d in docs]
     counts = {
@@ -93,6 +105,9 @@ async def teacher_courses(user: dict = Depends(require_role("teacher", "admin"))
 
 @router.get("/courses/{course_id}")
 async def get_course(course_id: str, user: dict = Depends(get_current_user)):
+    """Single course with viewer-specific fields layered on: whether this
+    user is enrolled, their completed_lessons, total enrolled_count, and
+    (if enrolled with a batch) their batch's name/schedule."""
     doc = await db.courses.find_one({"_id": course_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Course not found")
@@ -113,6 +128,8 @@ async def get_course(course_id: str, user: dict = Depends(get_current_user)):
 
 @router.post("/courses")
 async def create_course(body: CourseBody, user: dict = Depends(require_role("teacher", "admin"))):
+    """New courses start with an empty sections array — content is added
+    incrementally via the section/sub-topic/lesson endpoints below."""
     doc = body.model_dump()
     doc.update({
         "_id": str(uuid.uuid4()),
@@ -128,6 +145,8 @@ async def create_course(body: CourseBody, user: dict = Depends(require_role("tea
 
 @router.put("/courses/{course_id}")
 async def update_course(course_id: str, body: CourseBody, user: dict = Depends(require_role("teacher", "admin"))):
+    """Edits top-level course metadata (title/price/description/etc — not
+    the curriculum tree, which has its own endpoints below)."""
     doc = await db.courses.find_one({"_id": course_id, "teacher_id": user["id"]})
     if not doc:
         raise HTTPException(status_code=404, detail="Course not found")
@@ -202,7 +221,10 @@ async def remove_syllabus(course_id: str, user: dict = Depends(require_role("tea
 @router.delete("/courses/{course_id}")
 async def delete_course(course_id: str, user: dict = Depends(require_role("teacher", "admin"))):
     """Delete a course and cascade-remove all related content.
-    Owner-only (teacher who created it). Admin cannot bypass — kept intentionally strict."""
+    Owner-only (teacher who created it). Admin cannot bypass — kept intentionally strict.
+    (Note this route requires teacher_id == user["id"] even for an admin
+    caller — unlike most other admin-can-bypass patterns in this file —
+    because course deletion is destructive and irreversible.)"""
     course = await db.courses.find_one({"_id": course_id, "teacher_id": user["id"]})
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
@@ -244,8 +266,18 @@ async def delete_course(course_id: str, user: dict = Depends(require_role("teach
     }
 
 
+# --- Curriculum tree: Section -> Sub-Topic -> Lesson ------------------
+# All three levels live as nested arrays inside the course document
+# (course["sections"][i]["sub_topics"][j]["lessons"][k]) rather than
+# separate collections — mutations below either use MongoDB's positional
+# `$` / `$[]` array-update operators, or (when the update is nested deep
+# enough that operators get unwieldy) load the whole course, mutate the
+# Python list in memory, and $set the entire `sections` array back.
+
 @router.post("/courses/{course_id}/sections")
 async def add_section(course_id: str, body: SectionBody, user: dict = Depends(require_role("teacher", "admin"))):
+    """New sections start with one default "Overview" sub-topic so there's
+    somewhere to immediately add lessons."""
     if not body.title.strip():
         raise HTTPException(status_code=400, detail="Section title is required")
     section = {
@@ -289,6 +321,8 @@ async def delete_section(course_id: str, section_id: str, user: dict = Depends(r
 
 @router.post("/courses/{course_id}/sections/{section_id}/sub-topics")
 async def add_sub_topic(course_id: str, section_id: str, body: SubTopicBody, user: dict = Depends(require_role("teacher", "admin"))):
+    """Sub-topic titles must be unique within their section (case-insensitive).
+    `order` defaults to appending at the end if not explicitly given."""
     if not body.title.strip():
         raise HTTPException(status_code=400, detail="Sub topic title is required")
     course = await db.courses.find_one({"_id": course_id, "teacher_id": user["id"]})
@@ -317,6 +351,9 @@ async def add_sub_topic(course_id: str, section_id: str, body: SubTopicBody, use
 
 @router.put("/courses/{course_id}/sections/{section_id}/sub-topics/reorder")
 async def reorder_sub_topics(course_id: str, section_id: str, body: SubTopicReorderBody, user: dict = Depends(require_role("teacher", "admin"))):
+    """Client sends the full desired order of sub_topic_ids; each one's
+    `order` field is rewritten to match its new index. Any sub-topic not
+    included in the list is safety-appended at the end rather than dropped."""
     course = await db.courses.find_one({"_id": course_id, "teacher_id": user["id"]})
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
@@ -357,6 +394,8 @@ async def update_sub_topic(course_id: str, section_id: str, sub_topic_id: str, b
 
 @router.delete("/courses/{course_id}/sections/{section_id}/sub-topics/{sub_topic_id}")
 async def delete_sub_topic(course_id: str, section_id: str, sub_topic_id: str, user: dict = Depends(require_role("teacher", "admin"))):
+    """Guard: refuses to delete a sub-topic that still has lessons in it —
+    teacher must delete/move the lessons first (prevents silently losing content)."""
     course = await db.courses.find_one({"_id": course_id, "teacher_id": user["id"]})
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
@@ -377,6 +416,8 @@ async def delete_sub_topic(course_id: str, section_id: str, sub_topic_id: str, u
 
 @router.post("/courses/{course_id}/sections/{section_id}/sub-topics/{sub_topic_id}/lessons")
 async def add_lesson(course_id: str, section_id: str, sub_topic_id: str, body: LessonBody, user: dict = Depends(require_role("teacher", "admin"))):
+    """A lesson needs at least a video URL or one notes file (or both) —
+    `type` is a legacy field kept only so old UI badges still render correctly."""
     if not body.title.strip():
         raise HTTPException(status_code=400, detail="Lesson title is required")
     if not body.url and not body.notes:
@@ -460,7 +501,10 @@ async def delete_lesson(course_id: str, lesson_id: str, user: dict = Depends(req
 
 @router.get("/courses/{course_id}/lessons/{lesson_id}")
 async def get_lesson(course_id: str, lesson_id: str, user: dict = Depends(get_current_user)):
-    """Return a single lesson with its context (section, sub topic, prev/next lesson ids)."""
+    """Return a single lesson with its context (section, sub topic, prev/next lesson ids).
+    Flattens the nested Section -> Sub-Topic -> Lesson tree into an ordered
+    list purely to compute prev/next — this powers the LessonPage's
+    "Next lesson ->" navigation without the frontend needing the whole tree."""
     course = await db.courses.find_one({"_id": course_id})
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
@@ -497,6 +541,11 @@ async def get_lesson(course_id: str, lesson_id: str, user: dict = Depends(get_cu
 
 @router.post("/courses/{course_id}/enroll")
 async def enroll(course_id: str, body: Optional[EnrollBody] = None, user: dict = Depends(require_role("student"))):
+    """Direct self-enrollment — only allowed for free courses, or any
+    course while the platform-wide portal_mode is "demo" (see
+    routers/payments.py get_settings()). Paid courses otherwise require an
+    admin-recorded payment or a Razorpay payment to auto-enroll (see
+    payments.py's _maybe_enroll_and_notify)."""
     course = await db.courses.find_one({"_id": course_id})
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
@@ -543,6 +592,8 @@ async def enroll(course_id: str, body: Optional[EnrollBody] = None, user: dict =
 
 @router.get("/student/enrollments")
 async def my_enrollments(user: dict = Depends(require_role("student"))):
+    """"My Courses" list — each course annotated with a computed
+    progress % (completed lessons / total lessons)."""
     enrollments = await db.enrollments.find({"student_id": user["id"]}).to_list(200)
     course_ids = [e["course_id"] for e in enrollments]
     courses = {c["_id"]: c for c in await db.courses.find({"_id": {"$in": course_ids}}).to_list(200)}
@@ -593,6 +644,8 @@ async def toggle_sub_topic_comments(course_id: str, section_id: str, sub_topic_i
 
 @router.get("/courses/{course_id}/students")
 async def course_students(course_id: str, user: dict = Depends(require_role("teacher", "admin"))):
+    """Roster view for a course's "Enrolled Students" table — each row
+    includes their batch and lesson-completion count."""
     enrollments = await db.enrollments.find({"course_id": course_id}).to_list(500)
     student_ids = [e["student_id"] for e in enrollments]
     students = {s["_id"]: s for s in await db.users.find({"_id": {"$in": student_ids}}).to_list(500)}

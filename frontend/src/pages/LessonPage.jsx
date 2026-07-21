@@ -1,3 +1,7 @@
+// Single-lesson viewer ("/app/courses/:courseId/lessons/:lessonId") —
+// video (via LessonVideoPlayer) and/or downloadable notes, prev/next
+// navigation within the course, and a discussion thread (CommentsThread).
+// Auto-marks the lesson complete for students once 90% of the video plays.
 import { useEffect, useState, useCallback } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { api, formatApiError, fileUrl } from "@/lib/api";

@@ -1,3 +1,8 @@
+# Generic file upload/download used across the app (lesson notes/videos,
+# course syllabi, teacher profile photos, assignment submissions, etc.) —
+# a single shared mechanism rather than one per feature. See
+# storage_service.py for where the bytes actually end up (Azure Blob or
+# local disk).
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,6 +27,13 @@ VIDEO_MAX = 500 * 1024 * 1024           # 500 MB for videos
 
 @router.post("/files/upload")
 async def upload_file(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
+    """Any authenticated user (any role) can upload — per-feature endpoints
+    (e.g. courses.py's set_syllabus) apply their own additional rules (like
+    "must be a PDF") after the file already exists as a generic upload.
+    Reads the whole body into memory in 1 MB chunks (rather than streaming
+    straight to disk) so it can forward the bytes to object storage; aborts
+    early once the size cap is exceeded instead of accepting the full file
+    first."""
     ext = Path(file.filename or "").suffix.lower()
     if ext not in ALLOWED_EXT:
         raise HTTPException(
@@ -69,6 +81,11 @@ async def upload_file(file: UploadFile = File(...), user: dict = Depends(get_cur
 
 @router.get("/files/{file_id}")
 async def get_file(file_id: str):
+    """Deliberately unauthenticated — relies on the file_id UUID being
+    unguessable rather than a permission check, so any code that deletes
+    or replaces a file (see courses.py's syllabus replace/delete) must
+    proactively remove the storage object + this metadata doc, since
+    merely un-linking it elsewhere would leave the URL still working."""
     meta = await db.files.find_one({"_id": file_id})
     if not meta:
         raise HTTPException(status_code=404, detail="File not found")

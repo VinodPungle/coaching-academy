@@ -1,3 +1,6 @@
+// Admin's home page content — rendered inside Dashboard.jsx when
+// user.role === "admin". Platform-wide stat cards + a recent-signups feed,
+// backed by GET /admin/stats (backend/routers/admin.py).
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Users, GraduationCap, BookOpen, IndianRupee, FileQuestion, BarChart3 } from "lucide-react";

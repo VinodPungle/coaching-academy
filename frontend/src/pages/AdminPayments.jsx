@@ -1,3 +1,6 @@
+// Admin-only read-only payment ledger ("/app/payments") — every recorded
+// payment (UPI/manual + Razorpay) with total revenue. To actually record
+// or edit a payment for a specific student, see AdminEnrollments.jsx.
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { IndianRupee } from "lucide-react";

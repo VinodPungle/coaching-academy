@@ -1,3 +1,7 @@
+// Combined login/register page ("/auth?mode=login|register"). One form,
+// toggled between the two modes rather than separate routes/pages — see
+// `mode` state below. On success, delegates to AuthContext's login()/
+// register() which stores the JWT and updates global auth state.
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";

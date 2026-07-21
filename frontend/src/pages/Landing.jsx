@@ -1,3 +1,6 @@
+// Public marketing homepage (route "/") — hero, feature grid, contact/
+// enquiry form (posts to POST /api/enquiries), all editable at runtime via
+// SiteConfigContext rather than hardcoded here.
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import dayjs from "dayjs";
@@ -18,6 +21,8 @@ const FEATURES = [
 ];
 
 function EnquiryForm() {
+  // `website` is a honeypot field — see backend/routers/enquiries.py; kept
+  // hidden via CSS and never shown to real users.
   const [form, setForm] = useState({ name: "", email: "", phone: "", message: "", website: "" });
   const [status, setStatus] = useState({ state: "idle", message: "" });
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });

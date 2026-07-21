@@ -1,6 +1,12 @@
 // webpack-health-plugin.js
 // Webpack plugin that tracks compilation state and health metrics
-
+//
+// Dev-tooling only — entirely opt-in via the ENABLE_HEALTH_CHECK=true env
+// var (see frontend/.env's ENABLE_HEALTH_CHECK and craco.config.js, which
+// only requires this file and registers it as a webpack plugin when that
+// flag is set). Not used in production builds. Paired with
+// health-endpoints.js, which reads this plugin's tracked status to serve
+// the actual /health/* HTTP routes on the dev server.
 class WebpackHealthPlugin {
   constructor() {
     this.status = {

@@ -1,3 +1,7 @@
+// Fullscreen-style modal video player (react-player based — YouTube/direct
+// file URLs only, no Drive support here; compare with the more capable
+// LessonVideoPlayer.jsx which handles Drive too). Auto-marks a lesson
+// complete once the student has watched 90% of it.
 import { useRef, useState } from "react";
 import ReactPlayer from "react-player";
 import { X, CheckCircle2, Circle } from "lucide-react";

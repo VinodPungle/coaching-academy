@@ -1,3 +1,7 @@
+# Public "Contact Us" lead-capture form on the landing page — no auth
+# required, so this file leans on spam/abuse defenses instead: a honeypot
+# field, per-IP rate limiting, and input validation. Submissions are
+# stored (db.enquiries) and emailed to the admin inbox.
 import os
 import re
 import uuid
@@ -15,7 +19,9 @@ from notify import send_email, email_template, ACADEMY_NAME
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/enquiries", tags=["enquiries"])
 
-# Simple in-memory IP rate limiter: max 3 enquiries per IP per hour
+# Simple in-memory IP rate limiter: max 3 enquiries per IP per hour.
+# In-memory (not persisted) is fine here — worst case a restart resets
+# everyone's quota, which is an acceptable trade-off for a low-stakes form.
 _ip_hits: dict = defaultdict(deque)
 _RATE_LIMIT = 3
 _WINDOW_SECONDS = 3600
@@ -44,6 +50,8 @@ class EnquiryBody(BaseModel):
 
 
 def _rate_limit_ok(ip: str) -> bool:
+    """Sliding-window check: drop hit timestamps older than the window,
+    then allow the request only if under the per-IP cap."""
     now = time.time()
     q = _ip_hits[ip]
     while q and q[0] < now - _WINDOW_SECONDS:
@@ -56,6 +64,9 @@ def _rate_limit_ok(ip: str) -> bool:
 
 @router.post("")
 async def submit_enquiry(body: EnquiryBody, request: Request):
+    """Stores the enquiry and fire-and-forgets a notification email to the
+    admin. Bots that fill the hidden `website` field get a fake success
+    response instead of an error, so they don't learn the honeypot exists."""
     # Honeypot check
     if body.website.strip():
         logger.info(f"Enquiry rejected (honeypot triggered) from {request.client.host if request.client else 'unknown'}")

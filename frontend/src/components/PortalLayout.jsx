@@ -1,3 +1,9 @@
+// Shared chrome for every /app/* route (see App.js) — sidebar nav (desktop)
+// + bottom tab bar (mobile), rendered as the parent of a react-router
+// <Outlet/> so each page just fills the content area. Which nav items show
+// is entirely role-driven: admins get ADMIN_NAV, teachers get NAV + their
+// extra "My Profile" link, students get plain NAV — no per-item permission
+// checks elsewhere, the nav array itself IS the access model for navigation.
 import { NavLink, useNavigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useSiteConfig } from "@/context/SiteConfigContext";

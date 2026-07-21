@@ -1,3 +1,7 @@
+// Admin-only platform-wide payment settings ("/app/settings") — toggling
+// portal_mode between live/demo (demo mode lets any paid course be
+// enrolled free platform-wide, used for public demos), plus the UPI QR
+// code + VPA students see when paying offline.
 import { useEffect, useState } from "react";
 import { api, uploadFile, fileUrl, formatApiError } from "@/lib/api";
 import { toast } from "sonner";
